@@ -21,6 +21,8 @@ PAGE_SIZE = 10
 TITLE_MAX = Post.__table__.c.title.type.length
 AUTHOR_MAX = Post.__table__.c.author.type.length
 CONTENT_MAX = 10000
+# SQLite cannot bind a larger integer; sqlite3 raises OverflowError instead of finding no row.
+SQLITE_INT_MAX = 2**63 - 1
 KST = ZoneInfo("Asia/Seoul")
 
 
@@ -46,6 +48,14 @@ def _parse_page(raw: str | None) -> int:
         return int(raw) if raw is not None else 1
     except ValueError:
         return 1
+
+
+def _parse_post_id(raw: str) -> int | None:
+    # Stricter than int(): "+1", " 1" and non-ASCII digits are not post ids.
+    if not (raw.isascii() and raw.isdigit()):
+        return None
+    pk = int(raw)
+    return pk if 1 <= pk <= SQLITE_INT_MAX else None
 
 
 def _validate_post(title: str, author: str, content: str) -> dict[str, str]:
@@ -121,6 +131,18 @@ def create_post(
             {"form": {"title": title, "author": author, "content": content}, "errors": errors},
             status_code=400,
         )
-    db.add(Post(**cleaned))
+    post = Post(**cleaned)
+    db.add(post)
     db.commit()
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(f"/posts/{post.id}", status_code=303)
+
+
+# Declared after /posts/new so "new" is not captured as an id. post_id is a str so that a
+# non-numeric id gets this HTML 404 instead of FastAPI's 422, without a global handler.
+@app.get("/posts/{post_id}", response_class=HTMLResponse)
+def post_detail(request: Request, post_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
+    pk = _parse_post_id(post_id)
+    post = db.get(Post, pk) if pk is not None else None
+    if post is None:
+        return templates.TemplateResponse(request, "post_not_found.html", {}, status_code=404)
+    return templates.TemplateResponse(request, "post_detail.html", {"post": post})
