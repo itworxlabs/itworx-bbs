@@ -51,13 +51,16 @@ def add_sample_comments() -> None:
             return
         # Chosen by sample title so that posts a user wrote never get sample comments.
         titles = {f"샘플 글 {i}": count for i, count in SAMPLE_COMMENTS.items()}
+        # Capped at now: the newest sample post is dated now, and a later comment must never sort above
+        # these. Stored times are read back without tzinfo, so now is compared the same way.
+        now = datetime.now(UTC).replace(tzinfo=None)
         comments = [
             Comment(
                 post_id=post.id,
                 author=f"방문자{j}",
                 content=f"샘플 댓글 {j}입니다.",
                 password_hash=hash_password(SAMPLE_PASSWORD),
-                created_at=post.created_at + timedelta(minutes=j),
+                created_at=min(post.created_at + timedelta(minutes=j), now),
             )
             for post in db.scalars(select(Post).where(Post.title.in_(titles)))
             for j in range(1, titles[post.title] + 1)

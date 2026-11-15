@@ -113,6 +113,16 @@ def test_seed_adds_samples_only_once() -> None:
     assert verify_password("1234", comment_hash)
 
 
+def test_seed_comments_are_not_dated_in_the_future() -> None:
+    seed()
+    seeded_at = datetime.now(UTC).replace(tzinfo=None)
+
+    with SessionLocal() as db:
+        rows = db.execute(select(Post.created_at, Comment.created_at).join(Post.comments)).all()
+    assert rows
+    assert all(post_at <= comment_at <= seeded_at for post_at, comment_at in rows)
+
+
 def test_seed_adds_comments_to_existing_sample_posts_only() -> None:
     add_posts(3)
     with SessionLocal() as db:
