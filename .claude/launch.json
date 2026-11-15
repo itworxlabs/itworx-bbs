@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "archon",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-lc", "export PATH=\"$HOME/.bun/bin:$PATH\"; archon serve"],
+      "port": 3090
+    }
+  ]
+}
