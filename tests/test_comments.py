@@ -2,11 +2,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event, func, select
+from sqlalchemy import delete, event, func, select
 
 from app.db import SessionLocal, engine
 from app.main import app
-from app.models import Comment
+from app.models import Comment, Post
 from app.passwords import verify_password
 from tests.test_post_detail import add_post
 from tests.test_post_edit_delete import MISMATCH, REQUIRED, assert_no_secret, refuse_hashing
@@ -280,6 +280,42 @@ def test_deleting_post_deletes_its_comments() -> None:
     with SessionLocal() as db:
         assert db.scalar(select(func.count()).select_from(Comment).where(Comment.post_id == post_a)) == 0
     assert [comment.id for comment in stored_comments()] == [kept]
+
+
+def test_comment_on_post_deleted_while_hashing_is_404(monkeypatch: pytest.MonkeyPatch) -> None:
+    post_id = add_post()
+
+    def delete_post_then_hash(password: str) -> str:
+        with SessionLocal() as db:
+            db.execute(delete(Post).where(Post.id == post_id))
+            db.commit()
+        return TEST_PASSWORD_HASH
+
+    monkeypatch.setattr("app.main.hash_password", delete_post_then_hash)
+    response = client.post(f"/posts/{post_id}/comments", data=comment_form(), follow_redirects=False)
+
+    assert response.status_code == 404
+    assert stored_comments() == []
+
+
+def test_comment_added_while_post_is_deleted_is_deleted_too() -> None:
+    post_id = add_post()
+
+    added: list[int] = []
+
+    def comment_before_first_delete(conn: object, cursor: object, statement: str, *args: object) -> None:
+        if statement.startswith("DELETE") and not added:
+            added.append(add_comment(post_id))
+
+    event.listen(engine, "before_cursor_execute", comment_before_first_delete)
+    try:
+        response = client.post(f"/posts/{post_id}/delete", data={"password": TEST_PASSWORD}, follow_redirects=False)
+    finally:
+        event.remove(engine, "before_cursor_execute", comment_before_first_delete)
+
+    assert response.status_code == 303
+    assert added
+    assert stored_comments() == []
 
 
 def test_list_shows_comment_count() -> None:

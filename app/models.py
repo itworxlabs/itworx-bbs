@@ -18,10 +18,8 @@ class Post(Base):
     author: Mapped[str] = mapped_column(String(50))
     password_hash: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
-    # SQLite does not enforce foreign keys here, so deleting a post's comments is the ORM cascade's job.
-    comments: Mapped[list["Comment"]] = relationship(
-        order_by=lambda: (Comment.created_at, Comment.id), cascade="all, delete-orphan"
-    )
+    # Read-only: delete_post deletes a post's comments in SQL, since SQLite does not enforce foreign keys here.
+    comments: Mapped[list["Comment"]] = relationship(order_by=lambda: (Comment.created_at, Comment.id), viewonly=True)
 
 
 class Comment(Base):

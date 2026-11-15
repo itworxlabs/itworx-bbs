@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -328,6 +328,9 @@ def delete_post(
         return templates.TemplateResponse(
             request, "post_delete.html", {"post": post, "errors": {"password": PASSWORD_MISMATCH}}, status_code=403
         )
+    # SQLite does not enforce foreign keys here, so the post's comments are deleted with it.
+    # Deleting them first takes the write lock, so a comment committed meanwhile goes too.
+    db.execute(delete(Comment).where(Comment.post_id == post.id))
     db.delete(post)
     db.commit()
     return RedirectResponse("/?deleted=1", status_code=303)
@@ -356,6 +359,12 @@ def create_comment(
             status_code=400,
         )
     db.add(Comment(post_id=post.id, **cleaned, password_hash=hash_password(password)))
+    db.flush()
+    # The post may have been deleted while the password was hashed; checking after the
+    # insert holds the write lock, so delete_post cannot remove it before this commit.
+    if db.scalar(select(Post.id).where(Post.id == post.id)) is None:
+        db.rollback()
+        return _post_not_found(request)
     db.commit()
     return RedirectResponse(f"/posts/{post.id}?commented=1#comments", status_code=303)
 
