@@ -79,17 +79,19 @@ def test_edit_with_wrong_password_is_403(password: str) -> None:
     assert (post.title, post.content) == ("원래 제목", "원래 내용")
 
 
+@pytest.mark.parametrize("password", [TEST_PASSWORD, "wrong-password"])
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [("title", "", "제목을 입력해 주세요."), ("content", "a" * 10001, "내용은 10000자 이하로 입력해 주세요.")],
 )
-def test_edit_with_invalid_input_is_400(field: str, value: str, message: str) -> None:
+def test_edit_with_invalid_input_is_400(field: str, value: str, message: str, password: str) -> None:
     post_id = add_post(title="원래 제목", content="원래 내용")
 
-    response = client.post(f"/posts/{post_id}/edit", data=edit_form(**{field: value}))
+    response = client.post(f"/posts/{post_id}/edit", data=edit_form(**{field: value}, password=password))
 
     assert response.status_code == 400
     assert message in response.text
+    assert MISMATCH not in response.text
     assert "글을 수정하지 못했습니다." in response.text
     assert f'id="{field}-error"' in response.text
     assert_password_input_empty(response.text)
