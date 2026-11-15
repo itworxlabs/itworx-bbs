@@ -5,10 +5,10 @@
       <tr><th class="px-2 py-2 font-semibold whitespace-nowrap">번호</th><th class="px-2 py-2 font-semibold">제목</th><th class="px-2 py-2 font-semibold whitespace-nowrap">작성자</th><th class="px-2 py-2 font-semibold">작성일</th></tr>
     </thead>
     <tbody class="divide-y divide-gray-200">
-      {% for post in posts %}
+      {% for post, comment_count in posts %}
       <tr class="post-row">
         <td class="px-2 py-2 align-top">{{ post.id }}</td>
-        <td class="px-2 py-2 align-top wrap-anywhere"><a class="font-medium text-blue-700 hover:underline" href="/posts/{{ post.id }}">{{ post.title }}</a></td>
+        <td class="px-2 py-2 align-top wrap-anywhere"><a class="font-medium text-blue-700 hover:underline" href="/posts/{{ post.id }}">{{ post.title }}</a>{% if comment_count %} <span class="text-sm text-gray-600">[{{ comment_count }}]</span>{% endif %}</td>
         <td class="px-2 py-2 align-top wrap-anywhere">{{ post.author }}</td>
         <td class="px-2 py-2 align-top whitespace-nowrap">{{ post.created_at | kst }}</td>
       </tr>
