@@ -65,13 +65,15 @@ def test_edit_updates_title_and_content_only() -> None:
     assert ">바뀐 제목</h1>" in client.get(response.headers["location"]).text
 
 
-def test_edit_with_wrong_password_is_403() -> None:
+@pytest.mark.parametrize("password", ["wrong-password", "   "])
+def test_edit_with_wrong_password_is_403(password: str) -> None:
     post_id = add_post(title="원래 제목", content="원래 내용")
 
-    response = client.post(f"/posts/{post_id}/edit", data=edit_form(password="wrong-password"))
+    response = client.post(f"/posts/{post_id}/edit", data=edit_form(password=password))
 
     assert response.status_code == 403
     assert MISMATCH in response.text
+    assert REQUIRED not in response.text
     assert 'id="password-error"' in response.text
     assert 'value="바뀐 제목"' in response.text
     assert ">바뀐 내용</textarea>" in response.text
@@ -127,13 +129,15 @@ def test_delete_removes_post() -> None:
     assert client.get(f"/posts/{post_id}").status_code == 404
 
 
-def test_delete_with_wrong_password_is_403() -> None:
+@pytest.mark.parametrize("password", ["wrong-password", "   "])
+def test_delete_with_wrong_password_is_403(password: str) -> None:
     post_id = add_post()
 
-    response = client.post(f"/posts/{post_id}/delete", data={"password": "wrong-password"})
+    response = client.post(f"/posts/{post_id}/delete", data={"password": password})
 
     assert response.status_code == 403
     assert MISMATCH in response.text
+    assert REQUIRED not in response.text
     assert 'id="password-error"' in response.text
     assert stored(post_id) is not None
 
