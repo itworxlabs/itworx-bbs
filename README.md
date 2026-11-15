@@ -2,7 +2,7 @@
 
 ## 개요
 
-itworx 게시판 서비스의 프로젝트 뼈대다. FastAPI, Jinja2 템플릿과 HTMX(CDN), SQLAlchemy 2.x(기본 SQLite)로 구성되어 있으며, 아직 게시판 기능은 없다.
+itworx 게시판 서비스의 프로젝트 뼈대다. FastAPI, Jinja2 템플릿과 HTMX(CDN), SQLAlchemy 2.x(기본 SQLite)로 구성되어 있으며, 아직 게시판 기능은 없다. 데이터베이스 연결(`app/db.py`)은 준비만 되어 있고 현재 엔드포인트는 이를 사용하지 않으므로, 서버를 실행해도 `DATABASE_URL`은 읽히지 않고 SQLite 파일도 만들어지지 않는다.
 
 ## 요구 사항
 
@@ -41,6 +41,8 @@ docker build -t itworx-bbs .
 docker run --rm -p 8000:8000 itworx-bbs
 ```
 
+데이터베이스 URL 지정과 `data/` 마운트는 애플리케이션이 `app.db`를 사용하기 시작한 뒤에 효과가 있다(개요 참조).
+
 데이터베이스 URL 지정:
 
 ```bash
@@ -57,7 +59,7 @@ docker run --rm -p 8000:8000 -v "$(pwd)/data:/app/data" itworx-bbs
 
 | 이름 | 기본값 | 설명 |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./data/bbs.db` | SQLAlchemy 데이터베이스 연결 URL. SQLite 파일 경로의 상위 디렉터리는 자동으로 만들어진다. |
+| `DATABASE_URL` | `sqlite:///./data/bbs.db` | SQLAlchemy 데이터베이스 연결 URL. `app.db`를 import할 때 읽으며, 이때 SQLite 파일 경로의 상위 디렉터리를 만든다. 현재 `app.main`은 `app.db`를 import하지 않으므로 서버 실행만으로는 적용되지 않는다. |
 
 ## 디렉터리 구조
 
