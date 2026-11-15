@@ -86,6 +86,9 @@ def test_create_post_rejects_invalid(field: str, value: str, message: str) -> No
 
     assert response.status_code == 400
     assert message in response.text
+    assert "글을 등록하지 못했습니다." in response.text
+    assert f'aria-describedby="{field}-error"' in response.text
+    assert f'id="{field}-error"' in response.text
     if field != "title":
         assert 'value="새 글"' in response.text
     if field != "author":

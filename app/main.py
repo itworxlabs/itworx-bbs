@@ -18,8 +18,8 @@ from app.models import Base, Post
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PAGE_SIZE = 10
-TITLE_MAX = 200
-AUTHOR_MAX = 50
+TITLE_MAX = Post.__table__.c.title.type.length
+AUTHOR_MAX = Post.__table__.c.author.type.length
 CONTENT_MAX = 10000
 KST = ZoneInfo("Asia/Seoul")
 
