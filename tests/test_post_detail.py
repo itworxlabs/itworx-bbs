@@ -54,7 +54,10 @@ def test_detail_escapes_html() -> None:
     assert script not in text
 
 
-@pytest.mark.parametrize("raw_id", ["999", "abc", "0", "-1", "99999999999999999999999999", "1" * 4301])
+@pytest.mark.parametrize(
+    "raw_id",
+    ["999", "abc", "0", "-1", "99999999999999999999999999", "1" * 4301, "0" * 4301, "0" * 5001 + "5"],
+)
 def test_detail_not_found(raw_id: str) -> None:
     add_post()
 
@@ -65,6 +68,15 @@ def test_detail_not_found(raw_id: str) -> None:
     assert "글을 찾을 수 없습니다." in response.text
     assert '<a href="/">목록으로</a>' in response.text
     assert "htmx.org" in response.text
+
+
+def test_detail_accepts_leading_zeros() -> None:
+    post_id = add_post(title="앞자리 0")
+
+    response = client.get(f"/posts/{post_id:04d}")
+
+    assert response.status_code == 200
+    assert "<h1>앞자리 0</h1>" in response.text
 
 
 def test_other_404_unchanged() -> None:
