@@ -7,8 +7,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import func, select  # noqa: E402
 
-from app.db import SessionLocal, engine  # noqa: E402
-from app.models import Base, Post  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
+from app.migrate import run_migrations  # noqa: E402
+from app.models import Post  # noqa: E402
 from app.passwords import hash_password  # noqa: E402
 
 SAMPLE_COUNT = 25
@@ -16,7 +17,7 @@ SAMPLE_PASSWORD = "1234"
 
 
 def main() -> None:
-    Base.metadata.create_all(engine)
+    print(f"DB 마이그레이션: {run_migrations()}")
     with SessionLocal() as db:
         if db.scalar(select(func.count()).select_from(Post)):
             print("이미 글이 있어 샘플 글을 추가하지 않습니다.")

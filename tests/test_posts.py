@@ -1,13 +1,17 @@
+import logging
 import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from app.db import SessionLocal, engine
+from app.db import SessionLocal
 from app.main import app
-from app.models import Base, Post
+from app.migrate import BASE_DIR
+from app.models import Post
 from app.passwords import hash_password, verify_password
 from scripts.seed import main as seed
 
@@ -143,10 +147,10 @@ def test_htmx_history_restore_renders_full_page() -> None:
     assert 'id="post-list"' in response.text
 
 
-def test_startup_creates_tables() -> None:
-    Base.metadata.drop_all(engine)
-
-    with TestClient(app) as started:
+def test_startup_runs_migrations(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"), TestClient(app) as started:
         response = started.get("/")
 
     assert response.status_code == 200
+    head = ScriptDirectory.from_config(Config(BASE_DIR / "alembic.ini")).get_current_head()
+    assert f"DB 마이그레이션: 변경 없음: {head}" in caplog.messages
