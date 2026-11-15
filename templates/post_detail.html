@@ -2,9 +2,9 @@
 
 {% block title %}{{ post.title }} - itworx-bbs{% endblock %}
 
-{% block content %}<main id="main">
-  <h1>{{ post.title }}</h1>
-  <p>작성자: {{ post.author }} · 작성일: {{ post.created_at | kst }}</p>
-  <div class="post-content" style="white-space: pre-wrap; overflow-wrap: anywhere">{{ post.content }}</div>
-  <p><a href="/">목록으로</a> <a href="/posts/new">글쓰기</a> <a href="/posts/{{ post.id }}/edit">수정</a> <a href="/posts/{{ post.id }}/delete">삭제</a></p>
-</main>{% endblock %}
+{% block content %}
+  <h1 class="mb-4 text-2xl font-bold break-words">{{ post.title }}</h1>
+  <p class="mb-4 text-sm text-gray-600 break-words">작성자: {{ post.author }} · 작성일: {{ post.created_at | kst }}</p>
+  <div class="whitespace-pre-wrap wrap-anywhere">{{ post.content }}</div>
+  <p class="mt-6 flex flex-wrap gap-4"><a class="text-blue-700 underline hover:text-blue-900" href="/">목록으로</a> <a class="text-blue-700 underline hover:text-blue-900" href="/posts/new">글쓰기</a> <a class="text-blue-700 underline hover:text-blue-900" href="/posts/{{ post.id }}/edit">수정</a> <a class="text-blue-700 underline hover:text-blue-900" href="/posts/{{ post.id }}/delete">삭제</a></p>
+{% endblock %}

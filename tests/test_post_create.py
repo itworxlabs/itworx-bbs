@@ -57,7 +57,7 @@ def test_create_post_redirects_and_lists_first() -> None:
     assert "새 글" in first_row(client.get("/").text)
     with SessionLocal() as db:
         new_id, stored = db.execute(select(Post.id, Post.created_at).where(Post.title == "새 글")).one()
-    assert response.headers["location"] == f"/posts/{new_id}"
+    assert response.headers["location"] == f"/posts/{new_id}?created=1"
     assert abs(stored - datetime.now(UTC).replace(tzinfo=None)) < timedelta(minutes=1)
 
 
@@ -124,10 +124,8 @@ PASSWORD_LENGTH_MESSAGE = "비밀번호는 4자 이상 64자 이하로 입력해
 
 
 def assert_password_input_empty(html: str) -> None:
-    tag = '<input type="password" id="password" name="password"'
-    after = html[html.index(tag) + len(tag) :]
-    assert after.startswith((">", " aria-"))
-    assert "value=" not in after[: after.index(">")]
+    start = html.index('<input type="password" id="password"')
+    assert "value=" not in html[start : html.index(">", start)]
 
 
 @pytest.mark.parametrize(
@@ -194,3 +192,38 @@ def test_invalid_form_redisplay_is_escaped() -> None:
     assert response.status_code == 400
     assert "<script>alert(1)</script>" not in response.text
     assert "&lt;/textarea&gt;" in response.text
+
+
+def test_new_post_form_explains_password() -> None:
+    text = client.get("/posts/new").text
+
+    assert 'id="password-help"' in text
+    assert "글을 수정·삭제할 때 필요합니다. 4~64자로 입력해 주세요." in text
+    assert 'aria-describedby="password-help"' in text
+
+
+def test_empty_password_error_keeps_help_described() -> None:
+    response = client.post("/posts", data=valid_form(password=""))
+
+    assert response.status_code == 400
+    assert 'aria-describedby="password-error password-help"' in response.text
+
+
+def test_invalid_form_redisplays_input_as_typed() -> None:
+    form = valid_form(title="  제목  ", author=" 작성자 ", content=" 본문 ", password="")
+
+    response = client.post("/posts", data=form)
+
+    assert response.status_code == 400
+    assert 'value="  제목  "' in response.text
+    assert 'value=" 작성자 "' in response.text
+    assert "> 본문 </textarea>" in response.text
+    assert post_count() == 0
+
+
+def test_create_success_shows_notice() -> None:
+    response = client.post("/posts", data=valid_form())
+
+    assert response.status_code == 200
+    assert 'role="status"' in response.text
+    assert "글이 등록되었습니다." in response.text

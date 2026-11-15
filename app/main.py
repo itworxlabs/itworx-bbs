@@ -24,6 +24,7 @@ AUTHOR_MAX = Post.__table__.c.author.type.length
 CONTENT_MAX = 10000
 PASSWORD_MIN = 4
 PASSWORD_MAX = 64
+PASSWORD_REQUIRED = "비밀번호를 입력해 주세요."
 PASSWORD_MISMATCH = "비밀번호가 일치하지 않습니다."
 # SQLite cannot bind a larger integer; sqlite3 raises OverflowError instead of finding no row.
 SQLITE_INT_MAX = 2**63 - 1
@@ -97,7 +98,7 @@ def _validate_post(title: str, author: str, content: str, password: str) -> dict
         errors["author"] = f"작성자는 {AUTHOR_MAX}자 이하로 입력해 주세요."
     # The password is checked as typed: surrounding spaces are part of it.
     if not password:
-        errors["password"] = "비밀번호를 입력해 주세요."
+        errors["password"] = PASSWORD_REQUIRED
     elif not PASSWORD_MIN <= len(password) <= PASSWORD_MAX:
         errors["password"] = f"비밀번호는 {PASSWORD_MIN}자 이상 {PASSWORD_MAX}자 이하로 입력해 주세요."
     return errors
@@ -109,7 +110,9 @@ def health() -> dict[str, str]:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, page: str | None = None, db: Session = Depends(get_db)) -> HTMLResponse:
+def index(
+    request: Request, page: str | None = None, deleted: str | None = None, db: Session = Depends(get_db)
+) -> HTMLResponse:
     total = db.scalar(select(func.count()).select_from(Post)) or 0
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
     current = min(max(_parse_page(page), 1), total_pages)
@@ -128,7 +131,12 @@ def index(request: Request, page: str | None = None, db: Session = Depends(get_d
     response = templates.TemplateResponse(
         request,
         "_post_list.html" if is_partial else "index.html",
-        {"posts": posts, "page": current, "total_pages": total_pages},
+        {
+            "posts": posts,
+            "page": current,
+            "total_pages": total_pages,
+            "notice": "글이 삭제되었습니다." if deleted == "1" else None,
+        },
     )
     response.headers["Vary"] = "HX-Request"
     return response
@@ -163,17 +171,29 @@ def create_post(
     post = Post(**cleaned, password_hash=hash_password(password))
     db.add(post)
     db.commit()
-    return RedirectResponse(f"/posts/{post.id}", status_code=303)
+    return RedirectResponse(f"/posts/{post.id}?created=1", status_code=303)
 
 
 # Declared after /posts/new so "new" is not captured as an id. post_id is a str so that a
 # non-numeric id gets this HTML 404 instead of FastAPI's 422, without a global handler.
 @app.get("/posts/{post_id}", response_class=HTMLResponse)
-def post_detail(request: Request, post_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
+def post_detail(
+    request: Request,
+    post_id: str,
+    created: str | None = None,
+    updated: str | None = None,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
     post = _find_post(db, post_id)
     if post is None:
         return _post_not_found(request)
-    return templates.TemplateResponse(request, "post_detail.html", {"post": post})
+    if created == "1":
+        notice = "글이 등록되었습니다."
+    elif updated == "1":
+        notice = "글이 수정되었습니다."
+    else:
+        notice = None
+    return templates.TemplateResponse(request, "post_detail.html", {"post": post, "notice": notice})
 
 
 @app.get("/posts/{post_id}/edit", response_class=HTMLResponse)
@@ -189,7 +209,7 @@ def edit_post_form(request: Request, post_id: str, db: Session = Depends(get_db)
 
 
 # Title and content are validated before the password is checked, so invalid input is a 400
-# whatever password was sent. The author is not a form field and cannot be changed.
+# whatever password was sent. An empty password is a 400 answered without computing a hash. The author is not a form field and cannot be changed.
 @app.post("/posts/{post_id}/edit", response_model=None)
 def update_post(
     request: Request,
@@ -205,7 +225,9 @@ def update_post(
     cleaned = {"title": title.strip(), "content": content.strip()}
     errors = _validate_title_and_content(**cleaned)
     status_code = 400
-    if not errors and not verify_password(password, post.password_hash):
+    if not errors and not password:
+        errors = {"password": PASSWORD_REQUIRED}
+    elif not errors and not verify_password(password, post.password_hash):
         errors = {"password": PASSWORD_MISMATCH}
         status_code = 403
     if errors:
@@ -218,7 +240,7 @@ def update_post(
     post.title = cleaned["title"]
     post.content = cleaned["content"]
     db.commit()
-    return RedirectResponse(f"/posts/{post.id}", status_code=303)
+    return RedirectResponse(f"/posts/{post.id}?updated=1", status_code=303)
 
 
 @app.get("/posts/{post_id}/delete", response_class=HTMLResponse)
@@ -239,10 +261,14 @@ def delete_post(
     post = _find_post(db, post_id)
     if post is None:
         return _post_not_found(request)
+    if not password:
+        return templates.TemplateResponse(
+            request, "post_delete.html", {"post": post, "errors": {"password": PASSWORD_REQUIRED}}, status_code=400
+        )
     if not verify_password(password, post.password_hash):
         return templates.TemplateResponse(
             request, "post_delete.html", {"post": post, "errors": {"password": PASSWORD_MISMATCH}}, status_code=403
         )
     db.delete(post)
     db.commit()
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse("/?deleted=1", status_code=303)
