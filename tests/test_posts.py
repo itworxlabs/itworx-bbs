@@ -1,11 +1,14 @@
-from datetime import datetime, timedelta
+import time
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
 from app.db import SessionLocal, engine
 from app.main import app
 from app.models import Base, Post
+from scripts.seed import main as seed
 
 client = TestClient(app)
 
@@ -48,6 +51,41 @@ def test_list_is_paginated_newest_first() -> None:
     assert row_count(last.text) == 5
     assert 'href="/?page=2"' in last.text
     assert "다음" not in last.text
+
+
+def test_posts_with_same_created_at_are_newest_id_first() -> None:
+    with SessionLocal() as db:
+        db.add_all(Post(title=f"동시 {i}", content="내용", author="작성자", created_at=BASE_TIME) for i in range(1, 4))
+        db.commit()
+
+    text = client.get("/").text
+
+    assert text.index("동시 3") < text.index("동시 2") < text.index("동시 1")
+
+
+def test_created_at_defaults_to_utc_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A non-UTC local zone makes a naive datetime.now() default distinguishable from UTC.
+    monkeypatch.setenv("TZ", "Asia/Seoul")
+    time.tzset()
+    try:
+        with SessionLocal() as db:
+            db.add(Post(title="글", content="내용", author="작성자"))
+            db.commit()
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+
+    with SessionLocal() as db:
+        stored = db.scalars(select(Post.created_at)).one()
+    assert abs(stored - datetime.now(UTC).replace(tzinfo=None)) < timedelta(minutes=1)
+
+
+def test_seed_adds_samples_only_once() -> None:
+    seed()
+    seed()
+
+    with SessionLocal() as db:
+        assert db.scalar(select(func.count()).select_from(Post)) == 25
 
 
 def test_created_at_is_shown_in_kst() -> None:
