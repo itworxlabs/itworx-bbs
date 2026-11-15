@@ -3,11 +3,14 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
 from app.main import app
+from app.migrate import BASE_DIR
 from app.models import Post
 from app.passwords import hash_password, verify_password
 from scripts.seed import main as seed
@@ -149,4 +152,5 @@ def test_startup_runs_migrations(caplog: pytest.LogCaptureFixture) -> None:
         response = started.get("/")
 
     assert response.status_code == 200
-    assert "DB 마이그레이션: 변경 없음: 0002" in caplog.messages
+    head = ScriptDirectory.from_config(Config(BASE_DIR / "alembic.ini")).get_current_head()
+    assert f"DB 마이그레이션: 변경 없음: {head}" in caplog.messages
