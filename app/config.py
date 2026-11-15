@@ -7,8 +7,4 @@ class Settings:
     database_url: str
 
 
-def get_settings() -> Settings:
-    return Settings(database_url=os.getenv("DATABASE_URL", "sqlite:///./data/bbs.db"))
-
-
-settings = get_settings()
+settings = Settings(database_url=os.getenv("DATABASE_URL", "sqlite:///./data/bbs.db"))
