@@ -51,11 +51,11 @@ def test_create_post_redirects_and_lists_first() -> None:
     response = client.post("/posts", data=valid_form(), follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/"
     assert post_count() == 4
     assert "새 글" in first_row(client.get("/").text)
     with SessionLocal() as db:
-        stored = db.scalars(select(Post.created_at).where(Post.title == "새 글")).one()
+        new_id, stored = db.execute(select(Post.id, Post.created_at).where(Post.title == "새 글")).one()
+    assert response.headers["location"] == f"/posts/{new_id}"
     assert abs(stored - datetime.now(UTC).replace(tzinfo=None)) < timedelta(minutes=1)
 
 
