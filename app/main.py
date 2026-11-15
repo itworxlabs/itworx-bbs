@@ -3,10 +3,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -17,6 +18,9 @@ from app.models import Base, Post
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PAGE_SIZE = 10
+TITLE_MAX = 200
+AUTHOR_MAX = 50
+CONTENT_MAX = 10000
 KST = ZoneInfo("Asia/Seoul")
 
 
@@ -42,6 +46,23 @@ def _parse_page(raw: str | None) -> int:
         return int(raw) if raw is not None else 1
     except ValueError:
         return 1
+
+
+def _validate_post(title: str, author: str, content: str) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    if not title:
+        errors["title"] = "제목을 입력해 주세요."
+    elif len(title) > TITLE_MAX:
+        errors["title"] = f"제목은 {TITLE_MAX}자 이하로 입력해 주세요."
+    if not author:
+        errors["author"] = "작성자를 입력해 주세요."
+    elif len(author) > AUTHOR_MAX:
+        errors["author"] = f"작성자는 {AUTHOR_MAX}자 이하로 입력해 주세요."
+    if not content:
+        errors["content"] = "내용을 입력해 주세요."
+    elif len(content) > CONTENT_MAX:
+        errors["content"] = f"내용은 {CONTENT_MAX}자 이하로 입력해 주세요."
+    return errors
 
 
 @app.get("/health")
@@ -73,3 +94,33 @@ def index(request: Request, page: str | None = None, db: Session = Depends(get_d
     )
     response.headers["Vary"] = "HX-Request"
     return response
+
+
+@app.get("/posts/new", response_class=HTMLResponse)
+def new_post(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "post_new.html", {"form": {"title": "", "author": "", "content": ""}, "errors": {}}
+    )
+
+
+# Form fields default to "" so a missing field reaches our validation (400) instead of FastAPI's 422.
+@app.post("/posts", response_model=None)
+def create_post(
+    request: Request,
+    title: Annotated[str, Form()] = "",
+    author: Annotated[str, Form()] = "",
+    content: Annotated[str, Form()] = "",
+    db: Session = Depends(get_db),
+) -> HTMLResponse | RedirectResponse:
+    cleaned = {"title": title.strip(), "author": author.strip(), "content": content.strip()}
+    errors = _validate_post(**cleaned)
+    if errors:
+        return templates.TemplateResponse(
+            request,
+            "post_new.html",
+            {"form": {"title": title, "author": author, "content": content}, "errors": errors},
+            status_code=400,
+        )
+    db.add(Post(**cleaned))
+    db.commit()
+    return RedirectResponse("/", status_code=303)

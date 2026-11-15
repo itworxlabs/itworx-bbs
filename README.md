@@ -2,7 +2,7 @@
 
 ## 개요
 
-itworx 게시판 서비스다. FastAPI, Jinja2 템플릿과 HTMX(CDN), SQLAlchemy 2.x(기본 SQLite)로 구성되어 있으며, 현재는 글 목록 기능이 있다. 서버를 시작하면 `DATABASE_URL`의 데이터베이스에 테이블을 만든다(마이그레이션 도구는 쓰지 않는다).
+itworx 게시판 서비스다. FastAPI, Jinja2 템플릿과 HTMX(CDN), SQLAlchemy 2.x(기본 SQLite)로 구성되어 있으며, 글 목록과 글쓰기 기능이 있다. 서버를 시작하면 `DATABASE_URL`의 데이터베이스에 테이블을 만든다(마이그레이션 도구는 쓰지 않는다).
 
 ## 요구 사항
 
@@ -17,6 +17,7 @@ uv run uvicorn app.main:app --reload
 ```
 
 - 메인 페이지: http://localhost:8000/
+- 글쓰기: http://localhost:8000/posts/new
 - 헬스 체크: http://localhost:8000/health
 
 ### 샘플 데이터
@@ -42,6 +43,16 @@ uv run --env-file .env uvicorn app.main:app
 - 숫자가 아니거나 1보다 작은 `page`는 첫 페이지, 마지막 페이지보다 큰 값은 마지막 페이지를 보여 준다.
 - 작성일은 DB에 UTC로 저장하고, 화면에는 한국 시간(Asia/Seoul, KST)으로 변환해 `YYYY-MM-DD HH:MM` 형식으로 표시한다.
 - 이전/다음 링크는 HTMX로 목록 영역만 교체하고 주소를 갱신한다. JavaScript가 없어도 일반 링크로 동작한다.
+- 목록 위의 "글쓰기" 링크로 글쓰기 화면에 들어간다.
+
+## 글쓰기
+
+- `/posts/new`에서 제목, 작성자, 내용을 입력해 등록한다. 일반 HTML form 전송(`POST /posts`)이라 JavaScript가 없어도 동작한다.
+- 입력값은 앞뒤 공백을 제거한 뒤 검증한다. 제목은 1~200자, 작성자는 1~50자, 내용은 1~10000자여야 한다.
+- 검증에 실패하면 400 응답과 함께 항목별 오류를 보여 주고, 입력한 값은 그대로 유지한다.
+- 등록에 성공하면 303으로 `/`로 이동하며, 새 글이 목록 첫 행에 보인다.
+- 작성일은 클라이언트에서 받지 않고 서버가 UTC로 기록한다.
+- 입력값은 화면에 출력할 때 자동 이스케이프되어 HTML로 해석되지 않는다.
 
 ## 테스트
 
@@ -86,7 +97,7 @@ app/
   models.py    # SQLAlchemy 모델 (Post)
 scripts/
   seed.py      # 개발용 샘플 글 추가
-templates/     # Jinja2 템플릿 (base.html, index.html, _post_list.html)
+templates/     # Jinja2 템플릿 (base.html, index.html, _post_list.html, post_new.html)
 static/        # 정적 파일 (/static)
 tests/         # pytest 테스트
 Dockerfile
