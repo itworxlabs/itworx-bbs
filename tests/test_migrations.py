@@ -5,6 +5,7 @@ from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, inspect, text
 
@@ -90,6 +91,25 @@ def test_existing_db_is_stamped_and_upgraded(tmp_path: Path) -> None:
     assert rows(engine) == EXISTING_ROWS
     assert revision(engine) == HEAD
     assert "AUTOINCREMENT" in posts_sql(engine)
+
+
+def test_failed_upgrade_after_stamp_recovers_on_next_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = make_engine(tmp_path)
+    make_pre_migration_db(engine)
+
+    def fail(*args: object) -> None:
+        raise RuntimeError("upgrade interrupted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(command, "upgrade", fail)
+        with pytest.raises(RuntimeError):
+            run_migrations(engine)
+    assert "alembic_version" in inspect(engine).get_table_names()
+    assert revision(engine) is None
+
+    assert run_migrations(engine) == f"기준선 등록 후 업그레이드: {BASELINE_REVISION} -> {HEAD}"
+    assert rows(engine) == EXISTING_ROWS
+    assert revision(engine) == HEAD
 
 
 def test_second_run_changes_nothing(tmp_path: Path) -> None:

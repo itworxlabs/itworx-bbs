@@ -19,7 +19,9 @@ def run_migrations(engine: Engine = default_engine) -> str:
         config.attributes["connection"] = connection
         tables = set(inspect(connection).get_table_names())
         current = MigrationContext.configure(connection).get_current_revision()
-        if "alembic_version" not in tables and "posts" in tables:
+        # An empty alembic_version also counts: pysqlite commits its CREATE TABLE even when
+        # the upgrade after the stamp fails and rolls back.
+        if current is None and "posts" in tables:
             command.stamp(config, BASELINE_REVISION)
             command.upgrade(config, "head")
             return f"기준선 등록 후 업그레이드: {BASELINE_REVISION} -> {head}"
