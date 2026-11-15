@@ -16,12 +16,6 @@ if config.config_file_name is not None and "connection" not in config.attributes
 target_metadata = Base.metadata
 
 
-def run_migrations_offline() -> None:
-    context.configure(url=str(engine.url), target_metadata=target_metadata, literal_binds=True, render_as_batch=True)
-    with context.begin_transaction():
-        context.run_migrations()
-
-
 def _run(connection: Connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
     with context.begin_transaction():
@@ -37,7 +31,4 @@ def run_migrations_online() -> None:
         _run(connection)
 
 
-if context.is_offline_mode():
-    run_migrations_offline()
-else:
-    run_migrations_online()
+run_migrations_online()
