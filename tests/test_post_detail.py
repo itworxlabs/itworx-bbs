@@ -7,13 +7,20 @@ from sqlalchemy import select
 from app.db import SessionLocal
 from app.main import app
 from app.models import Post
+from tests.test_posts import TEST_PASSWORD, TEST_PASSWORD_HASH
 
 client = TestClient(app)
 
 
 def add_post(title: str = "제목", author: str = "작성자", content: str = "내용") -> int:
     with SessionLocal() as db:
-        post = Post(title=title, author=author, content=content, created_at=datetime(2026, 1, 1, 0, 25))
+        post = Post(
+            title=title,
+            author=author,
+            content=content,
+            password_hash=TEST_PASSWORD_HASH,
+            created_at=datetime(2026, 1, 1, 0, 25),
+        )
         db.add(post)
         db.commit()
         return post.id
@@ -32,6 +39,8 @@ def test_detail_shows_post() -> None:
     assert "<title>상세 제목 - itworx-bbs</title>" in response.text
     assert '<a href="/">목록으로</a>' in response.text
     assert '<a href="/posts/new">글쓰기</a>' in response.text
+    assert f'<a href="/posts/{post_id}/edit">수정</a>' in response.text
+    assert f'<a href="/posts/{post_id}/delete">삭제</a>' in response.text
 
 
 def test_detail_preserves_newlines_with_pre_wrap() -> None:
@@ -93,9 +102,9 @@ def test_list_title_links_to_detail() -> None:
 
 
 def test_create_redirects_to_detail() -> None:
-    form = {"title": "등록 제목", "author": "등록자", "content": "등록 내용"}
+    shown = {"title": "등록 제목", "author": "등록자", "content": "등록 내용"}
 
-    response = client.post("/posts", data=form, follow_redirects=False)
+    response = client.post("/posts", data=shown | {"password": TEST_PASSWORD}, follow_redirects=False)
 
     with SessionLocal() as db:
         new_id = db.scalars(select(Post.id).where(Post.title == "등록 제목")).one()
@@ -103,5 +112,6 @@ def test_create_redirects_to_detail() -> None:
     assert response.headers["location"] == f"/posts/{new_id}"
     detail = client.get(response.headers["location"])
     assert detail.status_code == 200
-    for value in form.values():
+    for value in shown.values():
         assert value in detail.text
+    assert TEST_PASSWORD not in detail.text

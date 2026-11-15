@@ -9,8 +9,10 @@ from sqlalchemy import func, select  # noqa: E402
 
 from app.db import SessionLocal, engine  # noqa: E402
 from app.models import Base, Post  # noqa: E402
+from app.passwords import hash_password  # noqa: E402
 
 SAMPLE_COUNT = 25
+SAMPLE_PASSWORD = "1234"
 
 
 def main() -> None:
@@ -25,6 +27,7 @@ def main() -> None:
                 title=f"샘플 글 {i}",
                 content=f"샘플 글 {i}의 내용입니다.",
                 author="관리자",
+                password_hash=hash_password(SAMPLE_PASSWORD),
                 created_at=now - timedelta(minutes=SAMPLE_COUNT - i),
             )
             for i in range(1, SAMPLE_COUNT + 1)
