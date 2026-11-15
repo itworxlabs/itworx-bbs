@@ -10,6 +10,7 @@ class Base(DeclarativeBase):
 
 class Post(Base):
     __tablename__ = "posts"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))

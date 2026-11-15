@@ -2,7 +2,7 @@
 
 ## 개요
 
-itworx 게시판 서비스다. FastAPI, Jinja2 템플릿과 HTMX(CDN), Tailwind CSS v4, SQLAlchemy 2.x(기본 SQLite)로 구성되어 있으며, 글 목록, 글 상세, 글쓰기, 글 수정, 글 삭제 기능이 있다. 서버를 시작하면 `DATABASE_URL`의 데이터베이스에 테이블을 만든다(마이그레이션 도구는 쓰지 않는다).
+itworx 게시판 서비스다. FastAPI, Jinja2 템플릿과 HTMX(CDN), Tailwind CSS v4, SQLAlchemy 2.x(기본 SQLite)로 구성되어 있으며, 글 목록, 글 상세, 글쓰기, 글 수정, 글 삭제 기능이 있다. 서버를 시작하면 Alembic 마이그레이션으로 `DATABASE_URL`의 데이터베이스를 최신 구조로 맞춘다([마이그레이션](#마이그레이션) 참고).
 
 ## 요구 사항
 
@@ -31,16 +31,7 @@ uv run uvicorn app.main:app --reload
 uv run python scripts/seed.py
 ```
 
-샘플 글 25개를 추가한다. 글이 이미 하나라도 있으면 아무것도 하지 않는다. 샘플 글의 비밀번호는 모두 `1234`다.
-
-### 개발 DB 다시 만들기
-
-`posts` 테이블에 `password_hash` 컬럼이 추가되었다. 서버 시작 시 실행되는 `create_all`은 이미 있는 테이블에 컬럼을 추가하지 않으므로, 이전에 만든 `data/bbs.db`에서는 글 등록과 조회가 실패한다. 마이그레이션 도구는 쓰지 않으므로 개발 DB를 지우고 다시 만든다.
-
-```bash
-rm data/bbs.db
-uv run python scripts/seed.py
-```
+먼저 DB 마이그레이션을 실행한 뒤 샘플 글 25개를 추가한다. 글이 이미 하나라도 있으면 아무것도 하지 않는다. 샘플 글의 비밀번호는 모두 `1234`다.
 
 ### .env 사용
 
@@ -50,6 +41,40 @@ uv run --env-file .env uvicorn app.main:app
 ```
 
 애플리케이션은 `.env` 파일을 자동으로 읽지 않는다. 위처럼 `uv run --env-file .env`로 로드하거나 환경변수를 직접 지정한다.
+
+## 마이그레이션
+
+DB 구조는 [Alembic](https://alembic.sqlalchemy.org/) 마이그레이션(`alembic/versions/`)으로 관리한다. DB를 지우고 다시 만들 필요가 없다.
+
+- 서버 시작과 `uv run python scripts/seed.py`가 자동으로 마이그레이션을 실행하고, 결과를 한 줄로 남긴다: `DB 마이그레이션: 신규 생성: 0002`, `기준선 등록 후 업그레이드: 0001 -> 0002`, `업그레이드: 0001 -> 0002`, `변경 없음: 0002` 중 하나다.
+- `alembic_version` 테이블이 없는 기존 DB(이전 버전이 `create_all`로 만든 DB)는 기준선 `0001`로 등록한 뒤 최신으로 올린다. 기존 글의 번호, 내용, 작성일, 비밀번호 해시는 그대로 유지된다. 처음 적용하기 전에 `data/bbs.db`를 복사해 두기를 권한다.
+
+### 수동 실행
+
+```bash
+uv run python -m app.migrate     # 서버 시작과 같은 처리(기준선 등록 포함)
+uv run alembic upgrade head      # 최신으로 올리기
+uv run alembic downgrade -1      # 한 단계 되돌리기
+uv run alembic current           # 현재 리비전
+uv run alembic history           # 리비전 목록
+```
+
+- 모두 `DATABASE_URL`을 따른다. `.env`를 쓰려면 `uv run --env-file .env alembic upgrade head`처럼 실행한다.
+- `alembic upgrade`는 기준선 등록을 하지 않는다. `alembic_version`이 없는 DB에 처음 적용할 때는 서버를 시작하거나 `uv run python -m app.migrate`를 실행한다.
+
+### 모델을 바꿀 때
+
+1. `app/models.py`를 고친다.
+2. 작업 DB를 최신으로 맞춘다(서버 시작 또는 `uv run python -m app.migrate`). 최신이 아니면 다음 단계가 "Target database is not up to date."로 실패한다.
+3. `uv run alembic revision --autogenerate -m "변경 설명"`으로 리비전 파일을 만든다.
+4. 생성된 파일을 검토한다. autogenerate는 `sqlite_autoincrement` 같은 테이블 옵션의 차이를 감지하지 않는다.
+5. `uv run pytest`를 실행한다. 테스트가 모델과 마이그레이션 결과가 같은지 확인한다.
+6. 모델과 리비전 파일을 함께 커밋한다.
+
+### 주의
+
+- SQLite는 `ALTER TABLE`로 바꿀 수 있는 것이 적어서, 구조 변경은 batch 모드로 새 테이블을 만들어 데이터를 복사한 뒤 바꿔치기한다. 큰 테이블은 시간이 걸리고, 중간에 중단되면 `_alembic_tmp_` 테이블이 남을 수 있으니 백업한 뒤 적용한다.
+- 글 번호는 다시 쓰지 않는다(`posts`는 `AUTOINCREMENT`). 가장 큰 번호의 글을 지워도 새 글은 다음 번호를 받는다. 단, 이 마이그레이션(`0002`)을 적용하기 전에 이미 지워진 가장 큰 번호는 기록이 없어 한 번 다시 쓰일 수 있다.
 
 ## CSS 빌드(Tailwind)
 
@@ -119,7 +144,7 @@ TAILWINDCSS_VERSION=v4.3.5 uv run tailwindcss -i static/src/input.css -o static/
 uv run pytest
 ```
 
-테스트는 임시 디렉터리의 SQLite DB를 사용하며 `data/bbs.db`를 건드리지 않는다.
+테스트는 임시 디렉터리의 SQLite DB를 사용하며 `data/bbs.db`를 건드리지 않는다. 테스트 DB도 마이그레이션으로 한 번 만들고, 테스트마다 데이터만 비운다.
 
 ## Docker
 
@@ -144,7 +169,7 @@ docker run --rm -p 8000:8000 -v "$(pwd)/data:/app/data" itworx-bbs
 
 | 이름 | 기본값 | 설명 |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./data/bbs.db` | SQLAlchemy 데이터베이스 연결 URL. `app.db`를 import할 때 읽으며, 이때 SQLite 파일 경로의 상위 디렉터리를 만든다. |
+| `DATABASE_URL` | `sqlite:///./data/bbs.db` | SQLAlchemy 데이터베이스 연결 URL. `app.db`를 import할 때 읽으며, 이때 SQLite 파일 경로의 상위 디렉터리를 만든다. `alembic` 명령과 `python -m app.migrate`도 같은 값을 쓴다. |
 
 ## 디렉터리 구조
 
@@ -153,6 +178,7 @@ app/
   main.py      # FastAPI 앱, 라우트
   config.py    # 환경변수 설정
   db.py        # SQLAlchemy engine, session
+  migrate.py   # DB 마이그레이션 실행 (서버 시작, seed, python -m app.migrate)
   models.py    # SQLAlchemy 모델 (Post)
   passwords.py # 글 비밀번호 해시(scrypt)와 확인
 scripts/
@@ -161,7 +187,11 @@ templates/     # Jinja2 템플릿 (base.html, index.html, _post_list.html, post_
 static/        # 정적 파일 (/static)
   src/input.css  # Tailwind 입력 CSS
   css/app.css    # 빌드한 CSS (커밋한다)
+alembic/
+  env.py       # Alembic 실행 환경 (DATABASE_URL, 모델 메타데이터)
+  versions/    # 마이그레이션 리비전
 tests/         # pytest 테스트
+alembic.ini    # Alembic 설정
 Dockerfile
 pyproject.toml
 uv.lock

@@ -1,3 +1,4 @@
+import logging
 import math
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -13,8 +14,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db import engine, get_db
-from app.models import Base, Post
+from app.db import get_db
+from app.migrate import run_migrations
+from app.models import Post
 from app.passwords import hash_password, verify_password
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,7 +35,8 @@ KST = ZoneInfo("Asia/Seoul")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    Base.metadata.create_all(engine)
+    # uvicorn configures only its own loggers, so app messages go through uvicorn.error to show up.
+    logging.getLogger("uvicorn.error").info("DB 마이그레이션: %s", run_migrations())
     yield
 
 
