@@ -1,0 +1,30 @@
+<section id="post-list">
+  {% if posts %}
+  <table>
+    <thead>
+      <tr><th>번호</th><th>제목</th><th>작성자</th><th>작성일</th></tr>
+    </thead>
+    <tbody>
+      {% for post in posts %}
+      <tr class="post-row">
+        <td>{{ post.id }}</td>
+        <td>{{ post.title }}</td>
+        <td>{{ post.author }}</td>
+        <td>{{ post.created_at | kst }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>등록된 글이 없습니다.</p>
+  {% endif %}
+  <nav>
+    {% if page > 1 %}
+    <a href="/?page={{ page - 1 }}" hx-get="/?page={{ page - 1 }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">이전</a>
+    {% endif %}
+    <span>{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="/?page={{ page + 1 }}" hx-get="/?page={{ page + 1 }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">다음</a>
+    {% endif %}
+  </nav>
+</section>
