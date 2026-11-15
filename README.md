@@ -44,10 +44,16 @@ uv run --env-file .env uvicorn app.main:app
 
 ## 마이그레이션
 
-DB 구조는 [Alembic](https://alembic.sqlalchemy.org/) 마이그레이션(`alembic/versions/`)으로 관리한다. DB를 지우고 다시 만들 필요가 없다.
+DB 구조는 [Alembic](https://alembic.sqlalchemy.org/) 마이그레이션(`alembic/versions/`)으로 관리한다. 기존 DB를 지우고 다시 만들 필요가 없다(아래 `password_hash` 예외 제외).
 
 - 서버 시작과 `uv run python scripts/seed.py`가 자동으로 마이그레이션을 실행하고, 결과를 한 줄로 남긴다: `DB 마이그레이션: 신규 생성: 0002`, `기준선 등록 후 업그레이드: 0001 -> 0002`, `업그레이드: 0001 -> 0002`, `변경 없음: 0002` 중 하나다.
 - `alembic_version` 테이블이 없는 기존 DB(이전 버전이 `create_all`로 만든 DB)는 기준선 `0001`로 등록한 뒤 최신으로 올린다. 기존 글의 번호, 내용, 작성일, 비밀번호 해시는 그대로 유지된다. 처음 적용하기 전에 `data/bbs.db`를 복사해 두기를 권한다.
+- 단, `posts`에 `password_hash` 컬럼이 없는 DB(그 컬럼이 추가되기 전 버전으로 만든 DB)는 기준선과 구조가 달라서, 마이그레이션은 끝나도 글 등록과 조회가 실패한다. 이런 개발 DB는 지우고 다시 만든다.
+
+```bash
+rm data/bbs.db
+uv run python scripts/seed.py
+```
 
 ### 수동 실행
 
