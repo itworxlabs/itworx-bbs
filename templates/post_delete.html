@@ -2,18 +2,20 @@
 
 {% block title %}글 삭제 - itworx-bbs{% endblock %}
 
-{% block content %}<main id="main">
-  <style>.error { color: #c00; }</style>
-  <h1>글 삭제</h1>
-  <p>이 글을 삭제하시겠습니까?</p>
-  <p>제목: {{ post.title }}</p>
-  <form method="post" action="/posts/{{ post.id }}/delete">
+{% block content %}
+  <h1 class="mb-4 text-2xl font-bold">글 삭제</h1>
+  <p class="mb-2">이 글을 삭제하시겠습니까?</p>
+  <p class="mb-4 break-words">제목: {{ post.title }}</p>
+  <form method="post" action="/posts/{{ post.id }}/delete" class="space-y-4">
     <div>
-      <label for="password">비밀번호</label>
-      <input type="password" id="password" name="password"{% if errors.password %} aria-invalid="true" aria-describedby="password-error"{% endif %}>
-      {% if errors.password %}<p class="error" id="password-error">{{ errors.password }}</p>{% endif %}
+      <label class="mb-1 block font-medium" for="password">비밀번호</label>
+      <input type="password" id="password" name="password" class="block w-full rounded border border-gray-300 bg-white px-3 py-2 focus:outline-2 focus:outline-offset-1 focus:outline-blue-600 aria-invalid:border-red-600"{% if errors.password %} aria-invalid="true" aria-describedby="password-error password-help"{% else %} aria-describedby="password-help"{% endif %}>
+      <p id="password-help" class="mt-1 text-sm text-gray-600">글을 쓸 때 정한 비밀번호를 입력해 주세요.</p>
+      {% if errors.password %}<p id="password-error" class="mt-1 text-sm text-red-700">{{ errors.password }}</p>{% endif %}
     </div>
-    <button type="submit">삭제</button>
-    <a href="/posts/{{ post.id }}">취소</a>
+    <div class="flex items-center gap-4">
+      <button type="submit" class="rounded bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 focus:outline-2 focus:outline-offset-2 focus:outline-red-600">삭제</button>
+      <a class="text-blue-700 underline hover:text-blue-900" href="/posts/{{ post.id }}">취소</a>
+    </div>
   </form>
-</main>{% endblock %}
+{% endblock %}

@@ -33,14 +33,14 @@ def test_detail_shows_post() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    for fragment in ("<h1>상세 제목</h1>", "홍길동", "상세 내용", "2026-01-01 09:25"):
+    for fragment in (">상세 제목</h1>", "홍길동", "상세 내용", "2026-01-01 09:25"):
         assert fragment in response.text
     assert "2026-01-01 00:25" not in response.text
     assert "<title>상세 제목 - itworx-bbs</title>" in response.text
-    assert '<a href="/">목록으로</a>' in response.text
-    assert '<a href="/posts/new">글쓰기</a>' in response.text
-    assert f'<a href="/posts/{post_id}/edit">수정</a>' in response.text
-    assert f'<a href="/posts/{post_id}/delete">삭제</a>' in response.text
+    assert 'href="/">목록으로</a>' in response.text
+    assert 'href="/posts/new">글쓰기</a>' in response.text
+    assert f'href="/posts/{post_id}/edit">수정</a>' in response.text
+    assert f'href="/posts/{post_id}/delete">삭제</a>' in response.text
 
 
 def test_detail_preserves_newlines_with_pre_wrap() -> None:
@@ -49,7 +49,7 @@ def test_detail_preserves_newlines_with_pre_wrap() -> None:
 
     text = client.get(f"/posts/{post_id}").text
 
-    assert f'<div class="post-content" style="white-space: pre-wrap; overflow-wrap: anywhere">{content}</div>' in text
+    assert f'class="whitespace-pre-wrap wrap-anywhere">{content}</div>' in text
     assert "<br" not in text
 
 
@@ -75,7 +75,7 @@ def test_detail_not_found(raw_id: str) -> None:
     assert response.status_code == 404
     assert response.headers["content-type"].startswith("text/html")
     assert "글을 찾을 수 없습니다." in response.text
-    assert '<a href="/">목록으로</a>' in response.text
+    assert 'href="/">목록으로</a>' in response.text
     assert "htmx.org" in response.text
 
 
@@ -85,7 +85,7 @@ def test_detail_accepts_leading_zeros() -> None:
     response = client.get(f"/posts/{post_id:04d}")
 
     assert response.status_code == 200
-    assert "<h1>앞자리 0</h1>" in response.text
+    assert ">앞자리 0</h1>" in response.text
 
 
 def test_other_404_unchanged() -> None:
@@ -98,7 +98,7 @@ def test_other_404_unchanged() -> None:
 def test_list_title_links_to_detail() -> None:
     post_id = add_post(title="링크 제목")
 
-    assert f'<a href="/posts/{post_id}">링크 제목</a>' in client.get("/").text
+    assert f'href="/posts/{post_id}">링크 제목</a>' in client.get("/").text
 
 
 def test_create_redirects_to_detail() -> None:
@@ -109,7 +109,7 @@ def test_create_redirects_to_detail() -> None:
     with SessionLocal() as db:
         new_id = db.scalars(select(Post.id).where(Post.title == "등록 제목")).one()
     assert response.status_code == 303
-    assert response.headers["location"] == f"/posts/{new_id}"
+    assert response.headers["location"] == f"/posts/{new_id}?created=1"
     detail = client.get(response.headers["location"])
     assert detail.status_code == 200
     for value in shown.values():

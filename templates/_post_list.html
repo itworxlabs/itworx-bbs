@@ -1,16 +1,16 @@
 <section id="post-list">
   {% if posts %}
-  <table>
-    <thead>
-      <tr><th>번호</th><th>제목</th><th>작성자</th><th>작성일</th></tr>
+  <table class="w-full text-left text-sm">
+    <thead class="border-b-2 border-gray-300">
+      <tr><th class="px-2 py-2 font-semibold">번호</th><th class="px-2 py-2 font-semibold">제목</th><th class="px-2 py-2 font-semibold">작성자</th><th class="px-2 py-2 font-semibold">작성일</th></tr>
     </thead>
-    <tbody>
+    <tbody class="divide-y divide-gray-200">
       {% for post in posts %}
       <tr class="post-row">
-        <td>{{ post.id }}</td>
-        <td><a href="/posts/{{ post.id }}">{{ post.title }}</a></td>
-        <td>{{ post.author }}</td>
-        <td>{{ post.created_at | kst }}</td>
+        <td class="px-2 py-2 align-top">{{ post.id }}</td>
+        <td class="px-2 py-2 align-top wrap-anywhere"><a class="font-medium text-blue-700 hover:underline" href="/posts/{{ post.id }}">{{ post.title }}</a></td>
+        <td class="px-2 py-2 align-top wrap-anywhere">{{ post.author }}</td>
+        <td class="px-2 py-2 align-top whitespace-nowrap">{{ post.created_at | kst }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -18,13 +18,13 @@
   {% else %}
   <p>등록된 글이 없습니다.</p>
   {% endif %}
-  <nav>
+  <nav class="mt-4 flex items-center justify-center gap-4">
     {% if page > 1 %}
-    <a href="/?page={{ page - 1 }}" hx-get="/?page={{ page - 1 }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">이전</a>
+    <a class="text-blue-700 underline hover:text-blue-900" href="/?page={{ page - 1 }}" hx-get="/?page={{ page - 1 }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">이전</a>
     {% endif %}
     <span>{{ page }} / {{ total_pages }}</span>
     {% if page < total_pages %}
-    <a href="/?page={{ page + 1 }}" hx-get="/?page={{ page + 1 }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">다음</a>
+    <a class="text-blue-700 underline hover:text-blue-900" href="/?page={{ page + 1 }}" hx-get="/?page={{ page + 1 }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">다음</a>
     {% endif %}
   </nav>
 </section>
