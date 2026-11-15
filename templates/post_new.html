@@ -22,6 +22,11 @@
       <textarea id="content" name="content" rows="10"{% if errors.content %} aria-invalid="true" aria-describedby="content-error"{% endif %}>{{ form.content }}</textarea>
       {% if errors.content %}<p class="error" id="content-error">{{ errors.content }}</p>{% endif %}
     </div>
+    <div>
+      <label for="password">비밀번호</label>
+      <input type="password" id="password" name="password"{% if errors.password %} aria-invalid="true" aria-describedby="password-error"{% endif %}>
+      {% if errors.password %}<p class="error" id="password-error">{{ errors.password }}</p>{% endif %}
+    </div>
     <button type="submit">등록</button>
     <a href="/">취소</a>
   </form>

@@ -8,17 +8,27 @@ from sqlalchemy import func, select
 from app.db import SessionLocal, engine
 from app.main import app
 from app.models import Base, Post
+from app.passwords import hash_password, verify_password
 from scripts.seed import main as seed
 
 client = TestClient(app)
 
 BASE_TIME = datetime(2026, 1, 1, 0, 0)
+# Unique enough that finding it in a page can only mean the password leaked.
+TEST_PASSWORD = "test-pass-9876"
+TEST_PASSWORD_HASH = hash_password(TEST_PASSWORD)
 
 
 def add_posts(count: int) -> None:
     with SessionLocal() as db:
         db.add_all(
-            Post(title=f"글 {i}", content="내용", author="작성자", created_at=BASE_TIME + timedelta(minutes=i))
+            Post(
+                title=f"글 {i}",
+                content="내용",
+                author="작성자",
+                password_hash=TEST_PASSWORD_HASH,
+                created_at=BASE_TIME + timedelta(minutes=i),
+            )
             for i in range(1, count + 1)
         )
         db.commit()
@@ -55,7 +65,10 @@ def test_list_is_paginated_newest_first() -> None:
 
 def test_posts_with_same_created_at_are_newest_id_first() -> None:
     with SessionLocal() as db:
-        db.add_all(Post(title=f"동시 {i}", content="내용", author="작성자", created_at=BASE_TIME) for i in range(1, 4))
+        db.add_all(
+            Post(title=f"동시 {i}", content="내용", author="작성자", password_hash=TEST_PASSWORD_HASH, created_at=BASE_TIME)
+            for i in range(1, 4)
+        )
         db.commit()
 
     text = client.get("/").text
@@ -69,7 +82,7 @@ def test_created_at_defaults_to_utc_now(monkeypatch: pytest.MonkeyPatch) -> None
     time.tzset()
     try:
         with SessionLocal() as db:
-            db.add(Post(title="글", content="내용", author="작성자"))
+            db.add(Post(title="글", content="내용", author="작성자", password_hash=TEST_PASSWORD_HASH))
             db.commit()
     finally:
         monkeypatch.undo()
@@ -86,6 +99,8 @@ def test_seed_adds_samples_only_once() -> None:
 
     with SessionLocal() as db:
         assert db.scalar(select(func.count()).select_from(Post)) == 25
+        sample_hash = db.scalars(select(Post.password_hash).limit(1)).one()
+    assert verify_password("1234", sample_hash)
 
 
 def test_created_at_is_shown_in_kst() -> None:

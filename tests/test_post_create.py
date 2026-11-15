@@ -7,13 +7,14 @@ from sqlalchemy import func, select
 from app.db import SessionLocal
 from app.main import app
 from app.models import Post
-from tests.test_posts import add_posts
+from app.passwords import verify_password
+from tests.test_posts import TEST_PASSWORD, add_posts
 
 client = TestClient(app)
 
 
 def valid_form(**overrides: str) -> dict[str, str]:
-    return {"title": "새 글", "author": "홍길동", "content": "본문"} | overrides
+    return {"title": "새 글", "author": "홍길동", "content": "본문", "password": TEST_PASSWORD} | overrides
 
 
 def post_count() -> int:
@@ -30,7 +31,8 @@ def test_new_post_form_renders() -> None:
     response = client.get("/posts/new")
 
     assert response.status_code == 200
-    for fragment in ('name="title"', 'name="author"', 'name="content"', "<textarea", "등록"):
+    fragments = ('name="title"', 'name="author"', 'name="content"', "<textarea", 'name="password"', 'type="password"', "등록")
+    for fragment in fragments:
         assert fragment in response.text
     assert 'method="post"' in response.text
     assert 'action="/posts"' in response.text
@@ -101,7 +103,7 @@ def test_create_post_rejects_invalid(field: str, value: str, message: str) -> No
 
 
 def test_create_post_accepts_max_lengths() -> None:
-    form = valid_form(title="t" * 200, author="a" * 50, content="c" * 10000)
+    form = valid_form(title="t" * 200, author="a" * 50, content="c" * 10000, password="p" * 64)
 
     response = client.post("/posts", data=form, follow_redirects=False)
 
@@ -113,9 +115,67 @@ def test_create_post_missing_fields_is_400() -> None:
     response = client.post("/posts")
 
     assert response.status_code == 400
-    for message in ("제목을 입력해 주세요.", "작성자를 입력해 주세요.", "내용을 입력해 주세요."):
+    for message in ("제목을 입력해 주세요.", "작성자를 입력해 주세요.", "내용을 입력해 주세요.", "비밀번호를 입력해 주세요."):
         assert message in response.text
     assert post_count() == 0
+
+
+PASSWORD_LENGTH_MESSAGE = "비밀번호는 4자 이상 64자 이하로 입력해 주세요."
+
+
+def assert_password_input_empty(html: str) -> None:
+    tag = '<input type="password" id="password" name="password"'
+    after = html[html.index(tag) + len(tag) :]
+    assert after.startswith((">", " aria-"))
+    assert "value=" not in after[: after.index(">")]
+
+
+@pytest.mark.parametrize(
+    ("password", "message"),
+    [("", "비밀번호를 입력해 주세요."), ("abc", PASSWORD_LENGTH_MESSAGE), ("a" * 65, PASSWORD_LENGTH_MESSAGE)],
+)
+def test_create_post_rejects_invalid_password(password: str, message: str) -> None:
+    response = client.post("/posts", data=valid_form(password=password))
+
+    assert response.status_code == 400
+    assert message in response.text
+    assert 'id="password-error"' in response.text
+    assert 'value="새 글"' in response.text
+    assert 'value="홍길동"' in response.text
+    assert_password_input_empty(response.text)
+    if password:
+        assert password not in response.text
+    assert post_count() == 0
+
+
+def test_create_post_keeps_password_spaces() -> None:
+    response = client.post("/posts", data=valid_form(password=" ab "), follow_redirects=False)
+
+    assert response.status_code == 303
+    with SessionLocal() as db:
+        stored = db.scalars(select(Post.password_hash)).one()
+    assert verify_password(" ab ", stored)
+    assert not verify_password("ab", stored)
+
+
+def test_create_post_stores_salted_hash() -> None:
+    client.post("/posts", data=valid_form(title="하나"))
+    client.post("/posts", data=valid_form(title="둘"))
+
+    with SessionLocal() as db:
+        first, second = db.scalars(select(Post.password_hash)).all()
+    assert TEST_PASSWORD not in (first, second)
+    assert first != second
+    assert verify_password(TEST_PASSWORD, first)
+    assert verify_password(TEST_PASSWORD, second)
+
+
+def test_invalid_form_redisplay_omits_password() -> None:
+    response = client.post("/posts", data=valid_form(title=""))
+
+    assert response.status_code == 400
+    assert TEST_PASSWORD not in response.text
+    assert_password_input_empty(response.text)
 
 
 def test_script_title_is_escaped_in_list() -> None:
