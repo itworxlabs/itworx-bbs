@@ -9,6 +9,7 @@
   <p class="mt-6 flex flex-wrap gap-4"><a class="text-blue-700 underline hover:text-blue-900" href="/">목록으로</a> <a class="text-blue-700 underline hover:text-blue-900" href="/posts/new">글쓰기</a> <a class="text-blue-700 underline hover:text-blue-900" href="/posts/{{ post.id }}/edit">수정</a> <a class="text-blue-700 underline hover:text-blue-900" href="/posts/{{ post.id }}/delete">삭제</a></p>
   <section id="comments" class="mt-6">
     <h2 class="mb-2 text-lg font-bold">댓글 {{ post.comments | length }}개</h2>
+    {% if comment_notice %}<p role="status" class="mb-4 rounded border border-green-300 bg-green-50 px-4 py-3 text-green-800">{{ comment_notice }}</p>{% endif %}
     {% if post.comments %}
     <ul class="divide-y divide-gray-200">
       {% for comment in post.comments %}

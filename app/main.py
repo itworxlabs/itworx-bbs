@@ -137,6 +137,7 @@ def _render_detail(
     post: Post,
     *,
     notice: str | None = None,
+    comment_notice: str | None = None,
     comment_form: dict[str, str] | None = None,
     comment_errors: dict[str, str] | None = None,
     status_code: int = 200,
@@ -147,6 +148,7 @@ def _render_detail(
         {
             "post": post,
             "notice": notice,
+            "comment_notice": comment_notice,
             "comment_form": comment_form or {"author": "", "content": ""},
             "comment_errors": comment_errors or {},
         },
@@ -246,13 +248,16 @@ def post_detail(
         notice = "글이 등록되었습니다."
     elif updated == "1":
         notice = "글이 수정되었습니다."
-    elif commented == "1":
-        notice = "댓글이 등록되었습니다."
-    elif comment_deleted == "1":
-        notice = "댓글이 삭제되었습니다."
     else:
         notice = None
-    return _render_detail(request, post, notice=notice)
+    # Shown inside the comments section, since these redirects scroll to #comments past the page-top notice.
+    if commented == "1":
+        comment_notice = "댓글이 등록되었습니다."
+    elif comment_deleted == "1":
+        comment_notice = "댓글이 삭제되었습니다."
+    else:
+        comment_notice = None
+    return _render_detail(request, post, notice=notice, comment_notice=comment_notice)
 
 
 @app.get("/posts/{post_id}/edit", response_class=HTMLResponse)

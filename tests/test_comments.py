@@ -62,8 +62,9 @@ def test_create_comment_redirects_and_shows_it() -> None:
     assert verify_password(" ab ", comment.password_hash)
     assert abs(comment.created_at - datetime.now(UTC).replace(tzinfo=None)) < timedelta(minutes=1)
     detail = client.get(response.headers["location"]).text
-    assert 'role="status"' in detail
-    assert "댓글이 등록되었습니다." in detail
+    comments_section = detail.split('id="comments"')[1]
+    assert 'role="status"' in comments_section
+    assert "댓글이 등록되었습니다." in comments_section
     assert "댓글 1개" in detail
     assert "홍길동" in detail
     assert "첫 댓글" in detail
@@ -200,7 +201,7 @@ def test_delete_comment_removes_only_it() -> None:
     assert response.headers["location"] == f"/posts/{post_id}?comment_deleted=1#comments"
     assert [comment.id for comment in stored_comments()] == [kept]
     detail = client.get(response.headers["location"]).text
-    assert "댓글이 삭제되었습니다." in detail
+    assert "댓글이 삭제되었습니다." in detail.split('id="comments"')[1]
     assert "지울 댓글" not in detail
     assert "남는 댓글" in detail
 
