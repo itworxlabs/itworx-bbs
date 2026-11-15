@@ -50,8 +50,10 @@ def test_css_is_built_with_pinned_tailwind() -> None:
     assert "tailwindcss v4.3.5" in APP_CSS.read_text()
 
 
-def css_selector(token: str) -> str:
-    return "." + re.sub(r"([^A-Za-z0-9_-])", r"\\\1", token)
+def css_selector(token: str) -> re.Pattern[str]:
+    escaped = "." + re.sub(r"([^A-Za-z0-9_-])", r"\\\1", token)
+    # The selector must end there: `.flex` alone is also a prefix of `.flex-wrap`.
+    return re.compile(re.escape(escaped) + r"(?![A-Za-z0-9_\\-])")
 
 
 def test_css_has_every_template_class() -> None:
@@ -63,6 +65,6 @@ def test_css_has_every_template_class() -> None:
         for token in attr.split()
     }
 
-    missing = sorted(token for token in tokens - UNSTYLED_CLASSES if css_selector(token) not in css)
+    missing = sorted(token for token in tokens - UNSTYLED_CLASSES if not css_selector(token).search(css))
 
     assert not missing, f"app.css에 없는 클래스: {missing}. README의 빌드 명령으로 CSS를 다시 빌드하세요."
