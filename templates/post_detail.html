@@ -5,6 +5,6 @@
 {% block content %}<main id="main">
   <h1>{{ post.title }}</h1>
   <p>작성자: {{ post.author }} · 작성일: {{ post.created_at | kst }}</p>
-  <div class="post-content" style="white-space: pre-wrap">{{ post.content }}</div>
+  <div class="post-content" style="white-space: pre-wrap; overflow-wrap: anywhere">{{ post.content }}</div>
   <p><a href="/">목록으로</a> <a href="/posts/new">글쓰기</a></p>
 </main>{% endblock %}

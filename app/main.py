@@ -54,6 +54,9 @@ def _parse_post_id(raw: str) -> int | None:
     # Stricter than int(): "+1", " 1" and non-ASCII digits are not post ids.
     if not (raw.isascii() and raw.isdigit()):
         return None
+    # int() refuses inputs over 4300 digits, so drop anything longer than the bound first.
+    if len(raw.lstrip("0")) > len(str(SQLITE_INT_MAX)):
+        return None
     pk = int(raw)
     return pk if 1 <= pk <= SQLITE_INT_MAX else None
 

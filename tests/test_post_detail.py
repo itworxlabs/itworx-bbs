@@ -40,7 +40,7 @@ def test_detail_preserves_newlines_with_pre_wrap() -> None:
 
     text = client.get(f"/posts/{post_id}").text
 
-    assert f'<div class="post-content" style="white-space: pre-wrap">{content}</div>' in text
+    assert f'<div class="post-content" style="white-space: pre-wrap; overflow-wrap: anywhere">{content}</div>' in text
     assert "<br" not in text
 
 
@@ -54,7 +54,7 @@ def test_detail_escapes_html() -> None:
     assert script not in text
 
 
-@pytest.mark.parametrize("raw_id", ["999", "abc", "0", "-1", "99999999999999999999999999"])
+@pytest.mark.parametrize("raw_id", ["999", "abc", "0", "-1", "99999999999999999999999999", "1" * 4301])
 def test_detail_not_found(raw_id: str) -> None:
     add_post()
 
