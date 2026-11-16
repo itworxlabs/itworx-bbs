@@ -58,7 +58,7 @@ def add_sample_comments(db: Session) -> None:
             author=f"방문자{j}",
             content=f"샘플 댓글 {j}입니다.",
             password_hash=hash_password(SAMPLE_PASSWORD),
-            created_at=post.created_at + timedelta(minutes=j),
+            created_at=post.created_at + timedelta(seconds=j),
         )
         for post in posts
         for j in range(1, counts[post.title] + 1)
