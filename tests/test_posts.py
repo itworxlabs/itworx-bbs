@@ -106,7 +106,9 @@ def test_seed_adds_samples_only_once() -> None:
         sample_hash = db.scalars(select(Post.password_hash).limit(1)).one()
         commented = db.execute(select(Post.title, func.count(Comment.id)).join(Comment).group_by(Post.id)).all()
         comment_hash = db.scalars(select(Comment.password_hash).limit(1)).one()
+        latest_comment_at = db.scalar(select(func.max(Comment.created_at)))
     assert verify_password("1234", sample_hash)
+    assert latest_comment_at - datetime.now(UTC).replace(tzinfo=None) < timedelta(seconds=10)
     assert sorted(commented) == [("샘플 글 23", 1), ("샘플 글 24", 2), ("샘플 글 25", 3)]
     assert verify_password("1234", comment_hash)
 
