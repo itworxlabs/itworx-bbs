@@ -5,13 +5,14 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -21,6 +22,15 @@ from app.passwords import hash_password, verify_password
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PAGE_SIZE = 10
+SEARCH_MAX = 100
+SEARCH_FIELD_DEFAULT = "title_content"
+SEARCH_FIELDS = {
+    "title_content": (Post.title, Post.content),
+    "title": (Post.title,),
+    "content": (Post.content,),
+    "author": (Post.author,),
+}
+SEARCH_FIELD_LABELS = [("title_content", "제목+내용"), ("title", "제목"), ("content", "내용"), ("author", "작성자")]
 TITLE_MAX = Post.__table__.c.title.type.length
 AUTHOR_MAX = Post.__table__.c.author.type.length
 CONTENT_MAX = 10000
@@ -58,6 +68,18 @@ def _parse_page(raw: str | None) -> int:
         return int(raw) if raw is not None else 1
     except ValueError:
         return 1
+
+
+# Backslash goes first so the escapes added for % and _ are not escaped again.
+def _like_pattern(query: str) -> str:
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _list_url(page: int, query: str, field: str) -> str:
+    if not query:
+        return f"/?page={page}"
+    return "/?" + urlencode({"page": page, "q": query, "field": field})
 
 
 def _parse_id(raw: str) -> int | None:
@@ -163,9 +185,23 @@ def health() -> dict[str, str]:
 
 @app.get("/", response_class=HTMLResponse)
 def index(
-    request: Request, page: str | None = None, deleted: str | None = None, db: Session = Depends(get_db)
+    request: Request,
+    page: str | None = None,
+    deleted: str | None = None,
+    q: str | None = None,
+    field: str | None = None,
+    db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    total = db.scalar(select(func.count()).select_from(Post)) or 0
+    query = (q or "").strip()
+    field = field if field in SEARCH_FIELDS else SEARCH_FIELD_DEFAULT
+    search_error = f"검색어는 {SEARCH_MAX}자 이하로 입력해 주세요." if len(query) > SEARCH_MAX else None
+    searching = bool(query) and search_error is None
+    conditions = []
+    if searching:
+        pattern = _like_pattern(query)
+        conditions.append(or_(*(column.like(pattern, escape="\\") for column in SEARCH_FIELDS[field])))
+
+    total = db.scalar(select(func.count()).select_from(Post).where(*conditions)) or 0
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
     current = min(max(_parse_page(page), 1), total_pages)
     comment_count = (
@@ -173,10 +209,12 @@ def index(
     )
     posts = db.execute(
         select(Post, comment_count)
+        .where(*conditions)
         .order_by(Post.created_at.desc(), Post.id.desc())
         .offset((current - 1) * PAGE_SIZE)
         .limit(PAGE_SIZE)
     ).all()
+    link_query = query if searching else ""
 
     # htmx sends HX-Request on history restores too, but expects a full page for them.
     is_partial = (
@@ -190,8 +228,17 @@ def index(
             "posts": posts,
             "page": current,
             "total_pages": total_pages,
+            "total": total,
+            "q": query,
+            "field": field,
+            "searching": searching,
+            "search_error": search_error,
+            "search_fields": SEARCH_FIELD_LABELS,
+            "prev_url": _list_url(current - 1, link_query, field) if current > 1 else None,
+            "next_url": _list_url(current + 1, link_query, field) if current < total_pages else None,
             "notice": "글이 삭제되었습니다." if deleted == "1" else None,
         },
+        status_code=400 if search_error else 200,
     )
     response.headers["Vary"] = "HX-Request"
     return response

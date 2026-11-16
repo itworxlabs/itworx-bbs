@@ -1,4 +1,5 @@
 <section id="post-list">
+  {% if searching %}<p class="mb-4 text-sm text-gray-600">'{{ q }}' 검색 결과 {{ total }}개 <a class="text-blue-700 underline hover:text-blue-900" href="/">전체 목록</a></p>{% endif %}
   {% if posts %}
   <table class="w-full text-left text-sm">
     <thead class="border-b-2 border-gray-300">
@@ -16,15 +17,15 @@
     </tbody>
   </table>
   {% else %}
-  <p>등록된 글이 없습니다.</p>
+  <p>{% if searching %}검색 결과가 없습니다.{% else %}등록된 글이 없습니다.{% endif %}</p>
   {% endif %}
   <nav class="mt-4 flex items-center justify-center gap-4">
-    {% if page > 1 %}
-    <a class="text-blue-700 underline hover:text-blue-900" href="/?page={{ page - 1 }}" hx-get="/?page={{ page - 1 }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">이전</a>
+    {% if prev_url %}
+    <a class="text-blue-700 underline hover:text-blue-900" href="{{ prev_url }}" hx-get="{{ prev_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">이전</a>
     {% endif %}
     <span>{{ page }} / {{ total_pages }}</span>
-    {% if page < total_pages %}
-    <a class="text-blue-700 underline hover:text-blue-900" href="/?page={{ page + 1 }}" hx-get="/?page={{ page + 1 }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">다음</a>
+    {% if next_url %}
+    <a class="text-blue-700 underline hover:text-blue-900" href="{{ next_url }}" hx-get="{{ next_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">다음</a>
     {% endif %}
   </nav>
 </section>
