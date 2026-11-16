@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
-from app.main import app
+from app.main import KST, app, format_list_date
 from app.migrate import BASE_DIR
 from app.models import Comment, Post
 from app.passwords import hash_password, verify_password
@@ -42,12 +43,24 @@ def row_count(html: str) -> int:
     return html.count('class="post-row"')
 
 
+def current_page(html: str) -> str:
+    match = re.search(r'aria-current="page"[^>]*>(\d+)<', html)
+    assert match
+    return match.group(1)
+
+
+def page_numbers(html: str) -> list[str]:
+    nav = html[html.index('<nav aria-label="페이지"') :]
+    return re.findall(r">(\d+)</(?:a|strong)>", nav[: nav.index("</nav>")])
+
+
 def test_empty_list_shows_message() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
     assert "등록된 글이 없습니다." in response.text
-    assert "1 / 1" in response.text
+    assert page_numbers(response.text) == ["1"]
+    assert current_page(response.text) == "1"
 
 
 def test_list_is_paginated_newest_first() -> None:
@@ -57,7 +70,8 @@ def test_list_is_paginated_newest_first() -> None:
     assert first.status_code == 200
     assert row_count(first.text) == 10
     assert first.text.index("글 25") < first.text.index("글 24")
-    assert "1 / 3" in first.text
+    assert page_numbers(first.text) == ["1", "2", "3"]
+    assert current_page(first.text) == "1"
     assert 'href="/?page=2"' in first.text
     assert "이전" not in first.text
 
@@ -137,14 +151,83 @@ def test_seed_adds_comments_to_existing_sample_posts_only() -> None:
     assert commented == [("샘플 글 25", 3)]
 
 
+def add_post_at(created_at: datetime, title: str = "글") -> None:
+    with SessionLocal() as db:
+        db.add(Post(title=title, content="내용", author="작성자", password_hash=TEST_PASSWORD_HASH, created_at=created_at))
+        db.commit()
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 def test_created_at_is_shown_in_kst() -> None:
-    add_posts(25)
+    add_post_at(datetime(2025, 12, 31, 15, 30))
 
-    response = client.get("/")
+    text = client.get("/").text
 
-    # Stored UTC 2026-01-01 00:25 is shown as KST (UTC+9).
-    assert "2026-01-01 09:25" in response.text
-    assert "2026-01-01 00:25" not in response.text
+    # Stored UTC 2025-12-31 15:30 is already 2026-01-01 in KST (UTC+9).
+    assert "26.01.01" in text
+    assert "25.12.31" not in text
+
+
+@pytest.mark.parametrize(
+    ("now", "created_at", "shown"),
+    [
+        # UTC 15:00 is KST midnight.
+        (datetime(2026, 1, 1, 15, 0, tzinfo=UTC), datetime(2026, 1, 1, 15, 0), "00:00"),
+        (datetime(2026, 1, 1, 15, 0, tzinfo=UTC), datetime(2026, 1, 1, 14, 59), "26.01.01"),
+        (datetime(2026, 1, 1, 14, 59, tzinfo=UTC), datetime(2026, 1, 1, 14, 0), "23:00"),
+        (datetime(2026, 1, 1, 14, 59, tzinfo=UTC), datetime(2025, 12, 31, 14, 59), "25.12.31"),
+    ],
+)
+def test_list_date_format(now: datetime, created_at: datetime, shown: str) -> None:
+    assert format_list_date(created_at, now) == shown
+
+
+def test_list_shows_time_for_today_and_date_before() -> None:
+    now = utc_now()
+    add_post_at(now, "오늘 글")
+    add_post_at(BASE_TIME, "옛 글")
+
+    text = client.get("/").text
+
+    assert now.replace(tzinfo=UTC).astimezone(KST).strftime("%H:%M") in text
+    assert "26.01.01" in text
+    assert "2026-01-01 09:" not in text
+
+
+def test_new_mark_within_24_hours() -> None:
+    now = utc_now()
+    add_post_at(now - timedelta(hours=23, minutes=59), "새 글")
+    add_post_at(now - timedelta(hours=24, minutes=1), "지난 글")
+
+    newer, older = client.get("/").text.split('<tr class="post-row">')[1:]
+
+    assert "새 글</a>" in newer and "new-mark" in newer
+    assert "지난 글</a>" in older and "new-mark" not in older
+
+
+def test_page_numbers_show_ten_and_block_links() -> None:
+    add_posts(115)
+
+    first = client.get("/").text
+    assert page_numbers(first) == [str(n) for n in range(1, 11)]
+    assert current_page(first) == "1"
+    assert 'href="/?page=11" hx-get="/?page=11"' in first
+    assert "다음 »" in first
+    assert "« 이전" not in first
+
+    last = client.get("/?page=12").text
+    assert page_numbers(last) == ["11", "12"]
+    assert current_page(last) == "12"
+    assert 'href="/?page=10" hx-get="/?page=10"' in last
+    assert "« 이전" in last
+    assert "다음 »" not in last
+
+    partial = client.get("/?page=11", headers={"HX-Request": "true"}).text
+    assert page_numbers(partial) == ["11", "12"]
+    assert 'href="/?page=10" hx-get="/?page=10"' in partial
 
 
 @pytest.mark.parametrize(("page", "rows"), [("0", 10), ("-1", 10), ("abc", 10), ("", 10), ("999", 5)])
@@ -166,7 +249,7 @@ def test_htmx_request_renders_only_list() -> None:
     assert "<html" not in response.text
     assert "htmx.org" not in response.text
     assert 'id="post-list"' in response.text
-    assert "2 / 3" in response.text
+    assert current_page(response.text) == "2"
     assert "HX-Request" in response.headers["Vary"]
 
 

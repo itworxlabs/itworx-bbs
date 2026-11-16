@@ -2,7 +2,7 @@ import logging
 import math
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlencode
@@ -22,6 +22,7 @@ from app.passwords import hash_password, verify_password
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PAGE_SIZE = 10
+PAGE_BLOCK = 10
 SEARCH_MAX = 100
 SEARCH_FIELD_DEFAULT = "title_content"
 SEARCH_FIELDS = {
@@ -56,10 +57,17 @@ def format_kst(value: datetime) -> str:
     return value.replace(tzinfo=UTC).astimezone(KST).strftime("%Y-%m-%d %H:%M")
 
 
+def format_list_date(value: datetime, now: datetime) -> str:
+    # value is a stored naive UTC time and now an aware one; "today" is decided in KST.
+    local = value.replace(tzinfo=UTC).astimezone(KST)
+    return local.strftime("%H:%M" if local.date() == now.astimezone(KST).date() else "%y.%m.%d")
+
+
 app = FastAPI(title="itworx-bbs", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["kst"] = format_kst
+templates.env.filters["list_date"] = format_list_date
 
 
 def _parse_page(raw: str | None) -> int:
@@ -214,6 +222,9 @@ def index(
         .limit(PAGE_SIZE)
     ).all()
     link_query = query if searching else ""
+    now = datetime.now(UTC)
+    block_start = (current - 1) // PAGE_BLOCK * PAGE_BLOCK + 1
+    block_end = min(block_start + PAGE_BLOCK - 1, total_pages)
 
     # htmx sends HX-Request on history restores too, but expects a full page for them.
     is_partial = (
@@ -226,7 +237,6 @@ def index(
         {
             "posts": posts,
             "page": current,
-            "total_pages": total_pages,
             "total": total,
             "q": query,
             "field": field,
@@ -234,8 +244,11 @@ def index(
             "search_error": search_error,
             "search_fields": [(value, label) for value, (label, _) in SEARCH_FIELDS.items()],
             "search_max": SEARCH_MAX,
-            "prev_url": _list_url(current - 1, link_query, field) if current > 1 else None,
-            "next_url": _list_url(current + 1, link_query, field) if current < total_pages else None,
+            "now": now,
+            "new_since": now.replace(tzinfo=None) - timedelta(hours=24),
+            "page_links": [(n, _list_url(n, link_query, field)) for n in range(block_start, block_end + 1)],
+            "prev_block_url": _list_url(block_start - 1, link_query, field) if block_start > 1 else None,
+            "next_block_url": _list_url(block_end + 1, link_query, field) if block_end < total_pages else None,
             "notice": "글이 삭제되었습니다." if deleted == "1" else None,
         },
         status_code=400 if search_error else 200,

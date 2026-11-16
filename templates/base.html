@@ -7,11 +7,13 @@
   <link rel="stylesheet" href="/static/css/app.css">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 </head>
-<body class="bg-gray-50 text-gray-900">
-  <header class="border-b border-gray-200 bg-white"><div class="mx-auto max-w-3xl px-4 py-3"><a href="/" class="text-lg font-bold">itworx-bbs</a></div></header>
-  <main id="main" class="mx-auto max-w-3xl px-4 py-6">
-    {% if notice %}<p role="status" class="mb-4 rounded border border-green-300 bg-green-50 px-4 py-3 text-green-800">{{ notice }}</p>{% endif %}
+<body class="flex min-h-screen flex-col bg-white text-[13px] leading-5 text-gray-800">
+  <header class="bg-blue-900"><div class="mx-auto max-w-[960px] px-3 py-2"><a href="/" class="text-base font-bold text-white hover:underline">itworx-bbs</a></div></header>
+  <div class="mx-auto w-full max-w-[960px] px-3 pt-4"><p class="border-b-2 border-blue-900 pb-1 text-lg font-bold text-blue-900"><a class="hover:underline" href="/">자유게시판</a></p></div>
+  <main id="main" class="mx-auto w-full max-w-[960px] flex-1 px-3 py-4">
+    {% if notice %}<p role="status" class="mb-3 rounded-sm border border-blue-200 bg-blue-50 px-3 py-2 text-blue-900">{{ notice }}</p>{% endif %}
     {% block content %}{% endblock %}
   </main>
+  <footer class="border-t border-gray-200 bg-gray-50"><p class="mx-auto max-w-[960px] px-3 py-3 text-xs text-gray-500">© itworx-bbs</p></footer>
 </body>
 </html>

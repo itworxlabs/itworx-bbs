@@ -1,31 +1,33 @@
 <section id="post-list">
-  {% if searching %}<p class="mb-4 text-sm text-gray-600">'{{ q }}' 검색 결과 {{ total }}개 <a class="text-blue-700 underline hover:text-blue-900" href="/">전체 목록</a></p>{% endif %}
+  {% if searching %}<p class="mb-2 text-xs text-gray-500">'{{ q }}' 검색 결과 {{ total }}개 <a class="text-blue-800 hover:underline" href="/">전체 목록</a></p>{% endif %}
   {% if posts %}
-  <table class="w-full text-left text-sm">
-    <thead class="border-b-2 border-gray-300">
-      <tr><th class="px-2 py-2 font-semibold whitespace-nowrap">번호</th><th class="px-2 py-2 font-semibold">제목</th><th class="px-2 py-2 font-semibold whitespace-nowrap">작성자</th><th class="px-2 py-2 font-semibold">작성일</th></tr>
+  <table class="w-full table-fixed border-t-2 border-blue-900 text-left">
+    <thead class="border-b border-gray-300 bg-gray-50">
+      <tr><th class="w-16 px-2 py-1.5 text-center font-medium text-gray-600 max-sm:hidden">번호</th><th class="px-2 py-1.5 text-center font-medium text-gray-600">제목</th><th class="w-28 px-2 py-1.5 text-center font-medium text-gray-600 max-sm:hidden">작성자</th><th class="w-24 px-2 py-1.5 text-center font-medium text-gray-600 max-sm:hidden">작성일</th></tr>
     </thead>
-    <tbody class="divide-y divide-gray-200">
+    <tbody class="divide-y divide-gray-200 border-b border-gray-300 *:hover:bg-gray-50">
       {% for post, comment_count in posts %}
       <tr class="post-row">
-        <td class="px-2 py-2 align-top">{{ post.id }}</td>
-        <td class="px-2 py-2 align-top wrap-anywhere"><a class="font-medium text-blue-700 hover:underline" href="/posts/{{ post.id }}">{{ post.title }}</a>{% if comment_count %} <span class="text-sm text-gray-600">[{{ comment_count }}]</span>{% endif %}</td>
-        <td class="px-2 py-2 align-top wrap-anywhere">{{ post.author }}</td>
-        <td class="px-2 py-2 align-top whitespace-nowrap">{{ post.created_at | kst }}</td>
+        <td class="px-2 py-1.5 text-center text-xs text-gray-500 max-sm:hidden">{{ post.id }}</td>
+        <td class="px-2 py-1.5 wrap-anywhere"><a class="text-gray-900 hover:underline" href="/posts/{{ post.id }}">{{ post.title }}</a>{% if comment_count %} <span class="text-xs text-blue-800">[{{ comment_count }}]</span>{% endif %}{% if post.created_at >= new_since %} <span class="new-mark rounded-sm bg-blue-900 px-1 text-[10px] font-bold text-white" aria-hidden="true">N</span><span class="sr-only">새 글</span>{% endif %}
+          <div class="mt-0.5 text-xs text-gray-500 wrap-anywhere sm:hidden">{{ post.author }} · {{ post.created_at | list_date(now) }}</div></td>
+        <td class="px-2 py-1.5 text-center text-xs text-gray-500 wrap-anywhere max-sm:hidden">{{ post.author }}</td>
+        <td class="px-2 py-1.5 text-center text-xs whitespace-nowrap text-gray-500 max-sm:hidden">{{ post.created_at | list_date(now) }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p>{% if searching %}검색 결과가 없습니다.{% else %}등록된 글이 없습니다.{% endif %}</p>
+  <p class="border-t-2 border-b border-t-blue-900 border-b-gray-300 py-6 text-center text-gray-500">{% if searching %}검색 결과가 없습니다.{% else %}등록된 글이 없습니다.{% endif %}</p>
   {% endif %}
-  <nav class="mt-4 flex items-center justify-center gap-4">
-    {% if prev_url %}
-    <a class="text-blue-700 underline hover:text-blue-900" href="{{ prev_url }}" hx-get="{{ prev_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">이전</a>
+  <div class="mt-2 flex justify-end"><a class="rounded-sm bg-blue-900 px-4 py-1.5 font-medium text-white hover:bg-blue-800 focus:outline-2 focus:outline-offset-2 focus:outline-blue-900" href="/posts/new">글쓰기</a></div>
+  <nav aria-label="페이지" class="mt-4 flex flex-wrap items-center justify-center gap-1">
+    {% if prev_block_url %}<a class="border border-gray-300 px-2 py-0.5 text-gray-700 hover:bg-gray-100" href="{{ prev_block_url }}" hx-get="{{ prev_block_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">« 이전</a>{% endif %}
+    {% for number, url in page_links %}
+    {% if number == page %}<strong aria-current="page" class="min-w-7 border border-blue-900 bg-blue-900 px-2 py-0.5 text-center text-white">{{ number }}</strong>
+    {% else %}<a class="min-w-7 border border-gray-300 px-2 py-0.5 text-center text-gray-700 hover:bg-gray-100" href="{{ url }}" hx-get="{{ url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">{{ number }}</a>
     {% endif %}
-    <span>{{ page }} / {{ total_pages }}</span>
-    {% if next_url %}
-    <a class="text-blue-700 underline hover:text-blue-900" href="{{ next_url }}" hx-get="{{ next_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">다음</a>
-    {% endif %}
+    {% endfor %}
+    {% if next_block_url %}<a class="border border-gray-300 px-2 py-0.5 text-gray-700 hover:bg-gray-100" href="{{ next_block_url }}" hx-get="{{ next_block_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">다음 »</a>{% endif %}
   </nav>
 </section>

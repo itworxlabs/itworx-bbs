@@ -28,8 +28,8 @@ def test_index_renders_base_layout_with_htmx() -> None:
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = sorted((ROOT / "templates").glob("*.html"))
 APP_CSS = ROOT / "static" / "css" / "app.css"
-# Mark list rows and comments for tests; they have no style of their own.
-UNSTYLED_CLASSES = {"post-row", "comment"}
+# Mark list rows, comments and new-post marks for tests; they have no style of their own.
+UNSTYLED_CLASSES = {"post-row", "comment", "new-mark"}
 
 
 def test_index_loads_built_stylesheet() -> None:

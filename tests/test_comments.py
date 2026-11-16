@@ -152,7 +152,7 @@ def test_detail_lists_comments_oldest_first_in_kst() -> None:
 
     assert "댓글 3개" in text
     assert "아직 댓글이 없습니다." not in text
-    assert text.count('class="comment py-3"') == 3
+    assert text.count('class="comment py-2"') == 3
     assert text.index("순서 1") < text.index("순서 2") < text.index("순서 3")
     assert "2026-01-01 09:26" in text
     assert "2026-01-01 00:26" not in text

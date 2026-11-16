@@ -10,7 +10,7 @@ from app.main import app
 from app.models import Post
 from tests.test_comments import add_comment, count_list_queries
 from tests.test_post_detail import add_post
-from tests.test_posts import BASE_TIME, TEST_PASSWORD_HASH, add_posts, row_count
+from tests.test_posts import BASE_TIME, TEST_PASSWORD_HASH, add_posts, current_page, page_numbers, row_count
 
 client = TestClient(app)
 
@@ -81,7 +81,7 @@ def test_blank_query_shows_full_list(q: str) -> None:
 
     assert response.status_code == 200
     assert row_count(response.text) == 10
-    assert "1 / 3" in response.text
+    assert page_numbers(response.text) == ["1", "2", "3"]
     assert "검색 결과" not in response.text
     assert 'href="/?page=2"' in response.text
 
@@ -137,7 +137,8 @@ def test_search_counts_and_pages_matching_posts_only() -> None:
 
     first = client.get("/", params={"q": "찾기"}).text
     assert "검색 결과 12개" in first
-    assert "1 / 2" in first
+    assert page_numbers(first) == ["1", "2"]
+    assert current_page(first) == "1"
     assert row_count(first) == 10
     assert "다른" not in first
 
@@ -146,13 +147,13 @@ def test_search_counts_and_pages_matching_posts_only() -> None:
     assert "다른" not in second
 
 
-@pytest.mark.parametrize(("page", "shown"), [("99", "2 / 2"), ("0", "1 / 2")])
+@pytest.mark.parametrize(("page", "shown"), [("99", "2"), ("0", "1")])
 def test_search_page_is_clamped_to_results(page: str, shown: str) -> None:
     add_found_and_other_posts()
 
     text = client.get("/", params={"q": "찾기", "page": page}).text
 
-    assert shown in text
+    assert current_page(text) == shown
     assert row_count(text) == (2 if page == "99" else 10)
 
 
@@ -168,6 +169,21 @@ def test_page_links_keep_search_encoded() -> None:
     prev_link = link(1, q, "title")
     second = client.get("/", params={"q": q, "field": "title", "page": "2"}).text
     assert f'href="{prev_link}" hx-get="{prev_link}"' in second
+
+
+def test_block_links_keep_search_encoded() -> None:
+    q = "한글 a&b#c"
+    add_titled_posts([f"{q} {i}" for i in range(1, 102)])
+
+    first = client.get("/", params={"q": q, "field": "title"}).text
+    next_block = link(11, q, "title")
+    assert f'href="{next_block}" hx-get="{next_block}"' in first
+    assert "다음 »" in first
+
+    last = client.get("/", params={"q": q, "field": "title", "page": "11"}).text
+    prev_block = link(10, q, "title")
+    assert f'href="{prev_block}" hx-get="{prev_block}"' in last
+    assert "« 이전" in last
 
 
 def test_htmx_partial_keeps_search() -> None:
@@ -190,7 +206,7 @@ def test_no_results_message_and_full_list_link() -> None:
     assert "검색 결과가 없습니다." in text
     assert "등록된 글이 없습니다." not in text
     assert "검색 결과 0개" in text
-    assert '<a class="text-blue-700 underline hover:text-blue-900" href="/">전체 목록</a>' in text
+    assert 'href="/">전체 목록</a>' in text
 
 
 def test_form_is_filled_with_current_search() -> None:
@@ -228,7 +244,7 @@ def test_search_keeps_comment_count() -> None:
     for _ in range(3):
         add_comment(post_id)
 
-    assert '<span class="text-sm text-gray-600">[3]</span>' in client.get("/", params={"q": "사과"}).text
+    assert '<span class="text-xs text-blue-800">[3]</span>' in client.get("/", params={"q": "사과"}).text
 
 
 def test_search_list_queries_do_not_grow_with_posts() -> None:
