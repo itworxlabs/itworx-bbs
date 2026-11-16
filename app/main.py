@@ -25,12 +25,11 @@ PAGE_SIZE = 10
 SEARCH_MAX = 100
 SEARCH_FIELD_DEFAULT = "title_content"
 SEARCH_FIELDS = {
-    "title_content": (Post.title, Post.content),
-    "title": (Post.title,),
-    "content": (Post.content,),
-    "author": (Post.author,),
+    "title_content": ("제목+내용", (Post.title, Post.content)),
+    "title": ("제목", (Post.title,)),
+    "content": ("내용", (Post.content,)),
+    "author": ("작성자", (Post.author,)),
 }
-SEARCH_FIELD_LABELS = [("title_content", "제목+내용"), ("title", "제목"), ("content", "내용"), ("author", "작성자")]
 TITLE_MAX = Post.__table__.c.title.type.length
 AUTHOR_MAX = Post.__table__.c.author.type.length
 CONTENT_MAX = 10000
@@ -199,7 +198,7 @@ def index(
     conditions = []
     if searching:
         pattern = _like_pattern(query)
-        conditions.append(or_(*(column.like(pattern, escape="\\") for column in SEARCH_FIELDS[field])))
+        conditions.append(or_(*(column.like(pattern, escape="\\") for column in SEARCH_FIELDS[field][1])))
 
     total = db.scalar(select(func.count()).select_from(Post).where(*conditions)) or 0
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
@@ -233,7 +232,8 @@ def index(
             "field": field,
             "searching": searching,
             "search_error": search_error,
-            "search_fields": SEARCH_FIELD_LABELS,
+            "search_fields": [(value, label) for value, (label, _) in SEARCH_FIELDS.items()],
+            "search_max": SEARCH_MAX,
             "prev_url": _list_url(current - 1, link_query, field) if current > 1 else None,
             "next_url": _list_url(current + 1, link_query, field) if current < total_pages else None,
             "notice": "글이 삭제되었습니다." if deleted == "1" else None,

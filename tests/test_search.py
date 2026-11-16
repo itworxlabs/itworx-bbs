@@ -197,10 +197,10 @@ def test_form_is_filled_with_current_search() -> None:
     text = client.get("/", params={"q": "사과", "field": "author"}).text
 
     assert '<form method="get" action="/" role="search"' in text
-    assert '<option value="author" selected>' in text
-    assert '<option value="title_content">' in text
+    assert '<option value="author" selected>작성자</option>' in text
+    assert '<option value="title_content">제목+내용</option>' in text
     assert '<label for="search-q" class="sr-only">검색어</label>' in text
-    assert '<input type="search" id="search-q" name="q" value="사과"' in text
+    assert '<input type="search" id="search-q" name="q" value="사과" maxlength="100"' in text
     assert '<label for="search-field" class="sr-only">검색 대상</label>' in text
     assert '<select id="search-field" name="field"' in text
 
