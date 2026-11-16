@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from app.db import SessionLocal
 from app.main import app
 from app.migrate import BASE_DIR
-from app.models import Post
+from app.models import Comment, Post
 from app.passwords import hash_password, verify_password
 from scripts.seed import main as seed
 
@@ -104,7 +104,37 @@ def test_seed_adds_samples_only_once() -> None:
     with SessionLocal() as db:
         assert db.scalar(select(func.count()).select_from(Post)) == 25
         sample_hash = db.scalars(select(Post.password_hash).limit(1)).one()
+        commented = db.execute(
+            select(Post.title, func.count(Comment.id)).join(Post.comments).group_by(Post.id).order_by(Post.title)
+        ).all()
+        comment_hash = db.scalars(select(Comment.password_hash).limit(1)).one()
     assert verify_password("1234", sample_hash)
+    assert commented == [("샘플 글 23", 1), ("샘플 글 24", 2), ("샘플 글 25", 3)]
+    assert verify_password("1234", comment_hash)
+
+
+def test_seed_comments_are_not_dated_in_the_future() -> None:
+    seed()
+    seeded_at = datetime.now(UTC).replace(tzinfo=None)
+
+    with SessionLocal() as db:
+        rows = db.execute(select(Post.created_at, Comment.created_at).join(Post.comments)).all()
+    assert rows
+    assert all(post_at <= comment_at <= seeded_at for post_at, comment_at in rows)
+
+
+def test_seed_adds_comments_to_existing_sample_posts_only() -> None:
+    add_posts(3)
+    with SessionLocal() as db:
+        db.add(Post(title="샘플 글 25", content="내용", author="작성자", password_hash=TEST_PASSWORD_HASH))
+        db.commit()
+
+    seed()
+
+    with SessionLocal() as db:
+        assert db.scalar(select(func.count()).select_from(Post)) == 4
+        commented = db.execute(select(Post.title, func.count(Comment.id)).join(Post.comments).group_by(Post.id)).all()
+    assert commented == [("샘플 글 25", 3)]
 
 
 def test_created_at_is_shown_in_kst() -> None:
