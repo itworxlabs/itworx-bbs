@@ -258,6 +258,8 @@ def test_delete_success_shows_notice() -> None:
         "/?deleted=true",
         "/posts/{id}?created=2",
         "/posts/{id}?updated=<script>alert(1)</script>",
+        "/posts/{id}?commented=2",
+        "/posts/{id}?comment_deleted=<script>alert(1)</script>",
     ],
 )
 def test_notice_needs_exact_flag(path: str) -> None:
@@ -266,6 +268,7 @@ def test_notice_needs_exact_flag(path: str) -> None:
     text = client.get(path.format(id=post_id)).text
 
     assert 'role="status"' not in text
-    for notice in ("글이 등록되었습니다.", "글이 수정되었습니다.", "글이 삭제되었습니다."):
+    notices = ("글이 등록되었습니다.", "글이 수정되었습니다.", "글이 삭제되었습니다.", "댓글이 등록되었습니다.", "댓글이 삭제되었습니다.")
+    for notice in notices:
         assert notice not in text
     assert "alert(1)" not in text

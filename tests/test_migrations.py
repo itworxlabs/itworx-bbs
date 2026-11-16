@@ -51,9 +51,9 @@ def rows(engine: Engine) -> list[tuple]:
         return [tuple(row) for row in connection.execute(text("SELECT * FROM posts ORDER BY id"))]
 
 
-def posts_sql(engine: Engine) -> str:
+def table_sql(engine: Engine, table: str = "posts") -> str | None:
     with engine.connect() as connection:
-        return connection.scalar(text("SELECT sql FROM sqlite_master WHERE name = 'posts'"))
+        return connection.scalar(text("SELECT sql FROM sqlite_master WHERE name = :name"), {"name": table})
 
 
 def revision(engine: Engine) -> str | None:
@@ -72,7 +72,8 @@ def test_models_match_migrations() -> None:
     with test_engine.connect() as connection:
         assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
     # compare_metadata ignores table options such as sqlite_autoincrement.
-    assert "AUTOINCREMENT" in posts_sql(test_engine)
+    assert "AUTOINCREMENT" in table_sql(test_engine)
+    assert "AUTOINCREMENT" in table_sql(test_engine, "comments")
 
 
 def test_empty_db_is_created_at_head(tmp_path: Path) -> None:
@@ -90,7 +91,7 @@ def test_existing_db_is_stamped_and_upgraded(tmp_path: Path) -> None:
     assert run_migrations(engine) == f"기준선 등록 후 업그레이드: {BASELINE_REVISION} -> {HEAD}"
     assert rows(engine) == EXISTING_ROWS
     assert revision(engine) == HEAD
-    assert "AUTOINCREMENT" in posts_sql(engine)
+    assert "AUTOINCREMENT" in table_sql(engine)
 
 
 def test_failed_upgrade_after_stamp_recovers_on_next_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,10 +117,10 @@ def test_second_run_changes_nothing(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     make_pre_migration_db(engine)
     run_migrations(engine)
-    sql = posts_sql(engine)
+    sql = table_sql(engine)
 
     assert run_migrations(engine) == f"변경 없음: {HEAD}"
-    assert posts_sql(engine) == sql
+    assert table_sql(engine) == sql
     assert rows(engine) == EXISTING_ROWS
 
 
@@ -129,12 +130,41 @@ def test_downgrade_and_upgrade_keep_rows(tmp_path: Path) -> None:
     run_migrations(engine)
 
     run_alembic(engine, "downgrade", BASELINE_REVISION)
-    assert "AUTOINCREMENT" not in posts_sql(engine)
+    assert "AUTOINCREMENT" not in table_sql(engine)
     assert rows(engine) == EXISTING_ROWS
 
     run_alembic(engine, "upgrade", "head")
-    assert "AUTOINCREMENT" in posts_sql(engine)
+    assert "AUTOINCREMENT" in table_sql(engine)
     assert rows(engine) == EXISTING_ROWS
+
+
+def test_0002_db_upgrades_to_head_keeping_posts(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    make_pre_migration_db(engine)
+    run_alembic(engine, "stamp", BASELINE_REVISION)
+    run_alembic(engine, "upgrade", "0002")
+
+    assert run_migrations(engine) == f"업그레이드: 0002 -> {HEAD}"
+    assert rows(engine) == EXISTING_ROWS
+    assert "AUTOINCREMENT" in table_sql(engine, "comments")
+    assert [index["name"] for index in inspect(engine).get_indexes("comments")] == ["ix_comments_post_id"]
+
+
+def test_downgrade_to_0002_drops_only_comments(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    make_pre_migration_db(engine)
+    run_migrations(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text("INSERT INTO comments VALUES (1, 2, '방문자', '댓글', 'scrypt$hash-d', '2026-01-04 00:00:00')")
+        )
+
+    run_alembic(engine, "downgrade", "0002")
+
+    assert "comments" not in inspect(engine).get_table_names()
+    assert revision(engine) == "0002"
+    assert rows(engine) == EXISTING_ROWS
+    assert "AUTOINCREMENT" in table_sql(engine)
 
 
 def test_deleted_highest_id_is_not_reused() -> None:
@@ -149,3 +179,20 @@ def test_deleted_highest_id_is_not_reused() -> None:
 
     created = client.post("/posts", data=form, follow_redirects=False)
     assert created.headers["location"] == "/posts/4?created=1"
+
+
+def test_deleted_highest_comment_id_is_not_reused() -> None:
+    client = TestClient(app)
+    form = {"author": "방문자", "content": "댓글", "password": "pass1234"}
+    post_id = client.post(
+        "/posts", data={"title": "제목", "author": "작성자", "content": "내용", "password": "pass1234"}
+    ).url.path.rsplit("/", 1)[1]
+    for _ in range(3):
+        client.post(f"/posts/{post_id}/comments", data=form)
+
+    deleted = client.post(f"/posts/{post_id}/comments/3/delete", data={"password": "pass1234"}, follow_redirects=False)
+    assert deleted.status_code == 303
+
+    detail = client.post(f"/posts/{post_id}/comments", data=form).text
+    assert f'href="/posts/{post_id}/comments/4/delete"' in detail
+    assert f'href="/posts/{post_id}/comments/3/delete"' not in detail
