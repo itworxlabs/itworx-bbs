@@ -70,7 +70,7 @@ def test_create_comment_redirects_and_shows_it() -> None:
     assert abs(comment.created_at - datetime.now(UTC).replace(tzinfo=None)) < timedelta(minutes=1)
     text = client.get(response.headers["location"]).text
     assert 'role="status"' in text
-    assert "댓글이 등록되었습니다." in text
+    assert text.index('id="comments"') < text.index("댓글이 등록되었습니다.")
     assert "댓글 1개" in text
     assert "홍길동 · " in text
     assert ">첫 댓글</div>" in text
@@ -199,7 +199,7 @@ def test_delete_removes_only_that_comment() -> None:
     assert response.headers["location"] == f"/posts/{post_id}?comment_deleted=1#comments"
     assert [comment.id for comment in stored_comments()] == [kept_id]
     text = client.get(response.headers["location"]).text
-    assert "댓글이 삭제되었습니다." in text
+    assert text.index('id="comments"') < text.index("댓글이 삭제되었습니다.")
     assert "지울 댓글" not in text
     assert "남는 댓글" in text
 

@@ -28,7 +28,6 @@ PASSWORD_MIN = 4
 PASSWORD_MAX = 64
 PASSWORD_REQUIRED = "비밀번호를 입력해 주세요."
 PASSWORD_MISMATCH = "비밀번호가 일치하지 않습니다."
-COMMENT_AUTHOR_MAX = Comment.__table__.c.author.type.length
 COMMENT_CONTENT_MAX = 1000
 # SQLite cannot bind a larger integer; sqlite3 raises OverflowError instead of finding no row.
 SQLITE_INT_MAX = 2**63 - 1
@@ -97,6 +96,7 @@ def _render_detail(
     post: Post,
     *,
     notice: str | None = None,
+    comment_notice: str | None = None,
     comment_form: dict[str, str] | None = None,
     comment_errors: dict[str, str] | None = None,
     status_code: int = 200,
@@ -107,6 +107,7 @@ def _render_detail(
         {
             "post": post,
             "notice": notice,
+            "comment_notice": comment_notice,
             "comment_form": comment_form or {"author": "", "content": ""},
             "comment_errors": comment_errors or {},
         },
@@ -127,12 +128,12 @@ def _validate_title_and_content(title: str, content: str) -> dict[str, str]:
     return errors
 
 
-def _validate_author_and_password(author: str, password: str, author_max: int) -> dict[str, str]:
+def _validate_author_and_password(author: str, password: str) -> dict[str, str]:
     errors: dict[str, str] = {}
     if not author:
         errors["author"] = "작성자를 입력해 주세요."
-    elif len(author) > author_max:
-        errors["author"] = f"작성자는 {author_max}자 이하로 입력해 주세요."
+    elif len(author) > AUTHOR_MAX:
+        errors["author"] = f"작성자는 {AUTHOR_MAX}자 이하로 입력해 주세요."
     # The password is checked as typed: surrounding spaces are part of it.
     if not password:
         errors["password"] = PASSWORD_REQUIRED
@@ -142,11 +143,11 @@ def _validate_author_and_password(author: str, password: str, author_max: int) -
 
 
 def _validate_post(title: str, author: str, content: str, password: str) -> dict[str, str]:
-    return _validate_title_and_content(title, content) | _validate_author_and_password(author, password, AUTHOR_MAX)
+    return _validate_title_and_content(title, content) | _validate_author_and_password(author, password)
 
 
 def _validate_comment(author: str, content: str, password: str) -> dict[str, str]:
-    errors = _validate_author_and_password(author, password, COMMENT_AUTHOR_MAX)
+    errors = _validate_author_and_password(author, password)
     if not content:
         errors["content"] = "내용을 입력해 주세요."
     elif len(content) > COMMENT_CONTENT_MAX:
@@ -242,17 +243,16 @@ def post_detail(
     post = _find_post(db, post_id)
     if post is None:
         return _post_not_found(request)
+    notice = comment_notice = None
     if created == "1":
         notice = "글이 등록되었습니다."
     elif updated == "1":
         notice = "글이 수정되었습니다."
     elif commented == "1":
-        notice = "댓글이 등록되었습니다."
+        comment_notice = "댓글이 등록되었습니다."
     elif comment_deleted == "1":
-        notice = "댓글이 삭제되었습니다."
-    else:
-        notice = None
-    return _render_detail(request, post, notice=notice)
+        comment_notice = "댓글이 삭제되었습니다."
+    return _render_detail(request, post, notice=notice, comment_notice=comment_notice)
 
 
 @app.get("/posts/{post_id}/edit", response_class=HTMLResponse)
