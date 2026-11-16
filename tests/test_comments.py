@@ -335,7 +335,7 @@ def test_list_shows_comment_count() -> None:
     assert "[" not in plain_row
 
 
-def count_list_queries() -> int:
+def count_list_queries(url: str = "/") -> int:
     statements: list[str] = []
 
     def record(*args: object) -> None:
@@ -343,7 +343,7 @@ def count_list_queries() -> int:
 
     event.listen(engine, "before_cursor_execute", record)
     try:
-        assert client.get("/").status_code == 200
+        assert client.get(url).status_code == 200
     finally:
         event.remove(engine, "before_cursor_execute", record)
     return len(statements)
