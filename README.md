@@ -2,7 +2,7 @@
 
 ## 개요
 
-itworx 게시판 서비스다. FastAPI, Jinja2 템플릿과 HTMX(CDN), Tailwind CSS v4, SQLAlchemy 2.x(기본 SQLite)로 구성되어 있으며, 글 목록, 글 상세, 글쓰기, 글 수정, 글 삭제 기능이 있다. 서버를 시작하면 Alembic 마이그레이션으로 `DATABASE_URL`의 데이터베이스를 최신 구조로 맞춘다([마이그레이션](#마이그레이션) 참고).
+itworx 게시판 서비스다. FastAPI, Jinja2 템플릿과 HTMX(CDN), Tailwind CSS v4, SQLAlchemy 2.x(기본 SQLite)로 구성되어 있으며, 글 목록, 글 상세, 글쓰기, 글 수정, 글 삭제와 댓글 기능이 있다. 서버를 시작하면 Alembic 마이그레이션으로 `DATABASE_URL`의 데이터베이스를 최신 구조로 맞춘다([마이그레이션](#마이그레이션) 참고).
 
 ## 요구 사항
 
@@ -31,7 +31,7 @@ uv run uvicorn app.main:app --reload
 uv run python scripts/seed.py
 ```
 
-먼저 DB 마이그레이션을 실행한 뒤 샘플 글 25개를 추가한다. 글이 이미 하나라도 있으면 아무것도 하지 않는다. 샘플 글의 비밀번호는 모두 `1234`다.
+먼저 DB 마이그레이션을 실행한 뒤 샘플 글 25개를 추가한다. 글이 이미 하나라도 있으면 글은 추가하지 않는다. 이어서 `샘플 글 25`, `샘플 글 24`, `샘플 글 23`에 샘플 댓글을 각각 3개, 2개, 1개 추가한다(그 제목의 글이 있을 때만). 글이 이미 있어도 댓글은 추가하지만, 댓글이 하나라도 있으면 댓글은 추가하지 않는다. 샘플 글과 샘플 댓글의 비밀번호는 모두 `1234`다.
 
 ### .env 사용
 
@@ -46,7 +46,7 @@ uv run --env-file .env uvicorn app.main:app
 
 DB 구조는 [Alembic](https://alembic.sqlalchemy.org/) 마이그레이션(`alembic/versions/`)으로 관리한다. 기존 DB를 지우고 다시 만들 필요가 없다(아래 `password_hash` 예외 제외).
 
-- 서버 시작과 `uv run python scripts/seed.py`가 자동으로 마이그레이션을 실행하고, 결과를 한 줄로 남긴다: `DB 마이그레이션: 신규 생성: 0002`, `기준선 등록 후 업그레이드: 0001 -> 0002`, `업그레이드: 0001 -> 0002`, `변경 없음: 0002` 중 하나다.
+- 서버 시작과 `uv run python scripts/seed.py`가 자동으로 마이그레이션을 실행하고, 결과를 한 줄로 남긴다: `DB 마이그레이션: 신규 생성: 0003`, `기준선 등록 후 업그레이드: 0001 -> 0003`, `업그레이드: 0002 -> 0003`, `변경 없음: 0003` 중 하나다.
 - `alembic_version` 테이블이 없는 기존 DB(이전 버전이 `create_all`로 만든 DB)는 기준선 `0001`로 등록한 뒤 최신으로 올린다. 기존 글의 번호, 내용, 작성일, 비밀번호 해시는 그대로 유지된다. 처음 적용하기 전에 `data/bbs.db`를 복사해 두기를 권한다.
 - 단, `posts`에 `password_hash` 컬럼이 없는 DB(그 컬럼이 추가되기 전 버전으로 만든 DB)는 기준선과 구조가 달라서, 마이그레이션은 끝나도 글 등록과 조회가 실패한다. 이런 개발 DB는 지우고 다시 만든다.
 
@@ -54,6 +54,12 @@ DB 구조는 [Alembic](https://alembic.sqlalchemy.org/) 마이그레이션(`alem
 rm data/bbs.db
 uv run python scripts/seed.py
 ```
+
+리비전:
+
+- `0001`: 기준선. 이전 버전이 `create_all`로 만든 `posts` 테이블.
+- `0002`: `posts`에 `AUTOINCREMENT`를 붙인다.
+- `0003`: 댓글 `comments` 테이블과 `post_id` 인덱스를 추가한다. `comments`도 `AUTOINCREMENT`다. 테이블을 새로 만들기만 하므로 기존 글은 그대로이고, `downgrade`는 `comments` 테이블만 지운다(글 유지).
 
 ### 수동 실행
 
@@ -73,14 +79,15 @@ uv run alembic history           # 리비전 목록
 1. `app/models.py`를 고친다.
 2. 작업 DB를 최신으로 맞춘다(서버 시작 또는 `uv run python -m app.migrate`). 최신이 아니면 다음 단계가 "Target database is not up to date."로 실패한다.
 3. `uv run alembic revision --autogenerate -m "변경 설명"`으로 리비전 파일을 만든다.
-4. 생성된 파일을 검토한다. autogenerate는 `sqlite_autoincrement` 같은 테이블 옵션의 차이를 감지하지 않는다.
+4. 생성된 파일을 검토한다. autogenerate는 기존 테이블의 `sqlite_autoincrement` 같은 테이블 옵션 변경을 감지하지 않는다(새 테이블에는 넣어 준다).
 5. `uv run pytest`를 실행한다. 테스트가 모델과 마이그레이션 결과가 같은지 확인한다.
 6. 모델과 리비전 파일을 함께 커밋한다.
 
 ### 주의
 
 - SQLite는 `ALTER TABLE`로 바꿀 수 있는 것이 적어서, 구조 변경은 batch 모드로 새 테이블을 만들어 데이터를 복사한 뒤 바꿔치기한다. 큰 테이블은 시간이 걸리고, 중간에 중단되면 `_alembic_tmp_` 테이블이 남을 수 있으니 백업한 뒤 적용한다.
-- 글 번호는 다시 쓰지 않는다(`posts`는 `AUTOINCREMENT`). 가장 큰 번호의 글을 지워도 새 글은 다음 번호를 받는다. 단, 이 마이그레이션(`0002`)을 적용하기 전에 이미 지워진 가장 큰 번호는 기록이 없어 한 번 다시 쓰일 수 있다.
+- 글 번호는 다시 쓰지 않는다(`posts`는 `AUTOINCREMENT`). 가장 큰 번호의 글을 지워도 새 글은 다음 번호를 받는다. 단, 이 마이그레이션(`0002`)을 적용하기 전에 이미 지워진 가장 큰 번호는 기록이 없어 한 번 다시 쓰일 수 있다. 댓글 번호(`comments`)도 다시 쓰지 않는다.
+- `PRAGMA foreign_keys`는 켜지 않는다. 켜면 batch 모드로 `posts`를 다시 만드는 마이그레이션(`0002`처럼)의 `DROP TABLE posts`에 외래 키 동작이 걸려, 실패하거나 `ON DELETE CASCADE`를 쓴 경우 댓글이 모두 지워진다. 그래서 글을 지울 때 댓글 삭제는 DB가 아니라 앱(SQLAlchemy ORM의 cascade)이 맡는다. 글은 앱을 통해서만 지운다. DB에서 직접 글을 지우면 그 글의 댓글이 남는다.
 
 ## CSS 빌드(Tailwind)
 
@@ -98,7 +105,7 @@ TAILWINDCSS_VERSION=v4.3.5 uv run tailwindcss -i static/src/input.css -o static/
 
 ## 처리 완료 안내
 
-- 등록, 수정, 삭제에 성공하면 이동한 화면 위에 안내 문구(`role="status"`)를 보여 준다. 안내 여부는 쿼리(`?created=1`, `?updated=1`, `?deleted=1`)로 전달한다.
+- 등록, 수정, 삭제에 성공하면 이동한 화면 위에 안내 문구(`role="status"`)를 보여 준다. 안내 여부는 쿼리(`?created=1`, `?updated=1`, `?deleted=1`, 댓글은 `?commented=1`, `?comment_deleted=1`)로 전달한다.
 - 값이 정확히 `1`일 때만 서버가 정한 고정 문구를 보여 주고, 쿼리 값 자체는 화면에 출력하지 않는다.
 - 안내는 쿼리가 붙은 주소에서 늘 다시 보인다. 새로고침하거나 그 주소를 공유해도 보이고, 목록에서 HTMX로 페이지를 옮겨도 목록 영역만 바뀌므로 안내는 남는다.
 
@@ -110,11 +117,12 @@ TAILWINDCSS_VERSION=v4.3.5 uv run tailwindcss -i static/src/input.css -o static/
 - 이전/다음 링크는 HTMX로 목록 영역만 교체하고 주소를 갱신한다. JavaScript가 없어도 일반 링크로 동작한다.
 - 목록 위의 "글쓰기" 링크로 글쓰기 화면에 들어간다.
 - 제목을 누르면 글 상세 화면으로 이동한다.
+- 댓글이 있는 글은 제목 옆에 댓글 수를 `[N]`으로 보여 준다. 댓글이 없으면 표시하지 않는다.
 
 ## 글 상세
 
 - `/posts/{id}`에서 제목, 작성자, 작성일(KST), 내용을 보여 준다. 내용의 줄바꿈과 연속 공백은 그대로 표시한다.
-- "목록으로", "글쓰기", "수정", "삭제" 링크가 있다.
+- "목록으로", "글쓰기", "수정", "삭제" 링크가 있다. 그 아래에 댓글 목록과 댓글 작성 폼이 있다([댓글](#댓글) 참고).
 - 없는 글이나 잘못된 id(숫자가 아니거나 0 이하)는 HTML 404 "글을 찾을 수 없습니다." 화면으로 응답한다. 다른 경로의 404는 기존대로 JSON이다.
 - 출력은 자동 이스케이프되어 HTML로 해석되지 않는다.
 
@@ -141,8 +149,19 @@ TAILWINDCSS_VERSION=v4.3.5 uv run tailwindcss -i static/src/input.css -o static/
 
 - `/posts/{id}/delete`에서 삭제할 글의 제목과 확인 문구를 보여 주고 비밀번호를 받는다. "취소"는 글 상세 화면으로 돌아간다.
 - 비밀번호가 비어 있으면 해시를 계산하지 않고 400 응답과 "비밀번호를 입력해 주세요." 오류를, 틀리면 403 응답과 "비밀번호가 일치하지 않습니다." 오류를 보여 준다.
-- 삭제에 성공하면 303으로 글 목록(`/?deleted=1`)으로 이동하고 목록 위에 "글이 삭제되었습니다." 안내를 보여 준다. 삭제한 글은 되돌릴 수 없다.
+- 삭제에 성공하면 303으로 글 목록(`/?deleted=1`)으로 이동하고 목록 위에 "글이 삭제되었습니다." 안내를 보여 준다. 글의 댓글도 함께 삭제된다. 삭제한 글은 되돌릴 수 없다.
 - 수정·삭제 화면과 전송 모두, 없는 글이나 잘못된 id는 글 상세와 같은 HTML 404 화면으로 응답한다.
+
+## 댓글
+
+- 글 상세 화면 아래(`id="comments"`)에 "댓글 N개"와 댓글을 오래된 순으로 보여 준다. 댓글마다 작성자, 작성일(KST), 내용, "삭제" 링크가 있고, 내용의 줄바꿈과 연속 공백은 그대로 표시한다. 댓글이 없으면 "아직 댓글이 없습니다."를 보여 준다.
+- 댓글 작성: 상세 화면 아래 폼에서 작성자, 내용, 비밀번호를 입력해 `POST /posts/{id}/comments`로 등록한다. 작성자와 내용은 앞뒤 공백을 제거한 뒤 검증한다. 작성자는 1~50자, 내용은 1~1000자, 비밀번호는 글과 같이 4~64자이고 앞뒤 공백을 지우지 않는다. 오류 문구도 글과 같다.
+- 검증에 실패하면 400 응답으로 글 상세 화면을 다시 보여 주고 항목별 오류를 표시한다. 입력한 작성자와 내용은 유지하고 비밀번호 칸은 비워 둔다.
+- 등록에 성공하면 303으로 `/posts/{id}?commented=1#comments`로 이동하고 "댓글이 등록되었습니다." 안내를 보여 준다.
+- 댓글 삭제: `/posts/{id}/comments/{comment_id}/delete`에서 작성자, 내용 앞부분, 확인 문구를 보여 주고 댓글 비밀번호를 받는다. "취소"는 글 상세 화면의 댓글 영역으로 돌아간다. 비밀번호가 비어 있으면 해시를 계산하지 않고 400 응답과 "비밀번호를 입력해 주세요." 오류를, 틀리면 403 응답과 "비밀번호가 일치하지 않습니다." 오류를 보여 준다.
+- 삭제에 성공하면 303으로 `/posts/{id}?comment_deleted=1#comments`로 이동하고 "댓글이 삭제되었습니다." 안내를 보여 준다.
+- 없는 글이나 잘못된 글 id는 "글을 찾을 수 없습니다." 404 화면으로, 글은 있는데 없는 댓글, 잘못된 댓글 id, 다른 글의 댓글은 "댓글을 찾을 수 없습니다." 404 화면으로 응답한다(모두 HTML). 댓글 id도 글 id와 같은 규칙으로 해석한다.
+- 글을 삭제하면 그 글의 댓글도 함께 삭제된다. 비밀번호는 해시로만 저장하며 어떤 화면에도 출력하지 않고, 출력은 자동 이스케이프된다.
 
 ## 테스트
 
@@ -185,11 +204,11 @@ app/
   config.py    # 환경변수 설정
   db.py        # SQLAlchemy engine, session
   migrate.py   # DB 마이그레이션 실행 (서버 시작, seed, python -m app.migrate)
-  models.py    # SQLAlchemy 모델 (Post)
-  passwords.py # 글 비밀번호 해시(scrypt)와 확인
+  models.py    # SQLAlchemy 모델 (Post, Comment)
+  passwords.py # 글·댓글 비밀번호 해시(scrypt)와 확인
 scripts/
-  seed.py      # 개발용 샘플 글 추가
-templates/     # Jinja2 템플릿 (base.html, index.html, _post_list.html, post_new.html, post_detail.html, post_edit.html, post_delete.html, post_not_found.html)
+  seed.py      # 개발용 샘플 글·댓글 추가
+templates/     # Jinja2 템플릿 (base.html, index.html, _post_list.html, post_new.html, post_detail.html, post_edit.html, post_delete.html, post_not_found.html, comment_delete.html, comment_not_found.html)
 static/        # 정적 파일 (/static)
   src/input.css  # Tailwind 입력 CSS
   css/app.css    # 빌드한 CSS (커밋한다)
