@@ -4,6 +4,9 @@ from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
+AUTHOR_MAX = 50
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -15,7 +18,7 @@ class Post(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     content: Mapped[str] = mapped_column(Text)
-    author: Mapped[str] = mapped_column(String(50))
+    author: Mapped[str] = mapped_column(String(AUTHOR_MAX))
     password_hash: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     # SQLite does not enforce foreign keys here, so deleting a post through the ORM is what
@@ -33,7 +36,7 @@ class Comment(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     post_id: Mapped[int] = mapped_column(ForeignKey("posts.id"), index=True)
-    author: Mapped[str] = mapped_column(String(50))
+    author: Mapped[str] = mapped_column(String(AUTHOR_MAX))
     content: Mapped[str] = mapped_column(Text)
     password_hash: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))

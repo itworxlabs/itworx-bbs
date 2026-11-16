@@ -16,13 +16,12 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.migrate import run_migrations
-from app.models import Comment, Post
+from app.models import AUTHOR_MAX, Comment, Post
 from app.passwords import hash_password, verify_password
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PAGE_SIZE = 10
 TITLE_MAX = Post.__table__.c.title.type.length
-AUTHOR_MAX = Post.__table__.c.author.type.length
 CONTENT_MAX = 10000
 PASSWORD_MIN = 4
 PASSWORD_MAX = 64
