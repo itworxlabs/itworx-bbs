@@ -21,13 +21,31 @@
   <p class="border-t-2 border-b border-t-blue-900 border-b-gray-300 py-6 text-center text-gray-500">{% if searching %}검색 결과가 없습니다.{% else %}등록된 글이 없습니다.{% endif %}</p>
   {% endif %}
   <div class="mt-2 flex justify-end"><a class="rounded-sm bg-blue-900 px-4 py-1.5 font-medium text-white hover:bg-blue-800 focus:outline-2 focus:outline-offset-2 focus:outline-blue-900" href="/posts/new">글쓰기</a></div>
-  <nav aria-label="페이지" class="mt-4 flex flex-wrap items-center justify-center gap-1">
-    {% if prev_block_url %}<a class="border border-gray-300 px-2 py-0.5 text-gray-700 hover:bg-gray-100" href="{{ prev_block_url }}" hx-get="{{ prev_block_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">« 이전</a>{% endif %}
-    {% for number, url in page_links %}
-    {% if number == page %}<strong aria-current="page" class="min-w-7 border border-blue-900 bg-blue-900 px-2 py-0.5 text-center text-white">{{ number }}</strong>
-    {% else %}<a class="min-w-7 border border-gray-300 px-2 py-0.5 text-center text-gray-700 hover:bg-gray-100" href="{{ url }}" hx-get="{{ url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">{{ number }}</a>
+  <nav aria-label="페이지" class="mt-4 flex flex-wrap items-center gap-4 py-3.5 text-sm">
+    <span class="text-gray-600 tabular-nums">총 {{ "{:,}".format(total) }}건</span>
+    <ol class="mx-auto flex items-center gap-1.5">
+      {% for number, url in page_items %}
+      {% if number is none %}<li aria-hidden="true" class="px-1 text-gray-500">…</li>
+      {% elif number == page %}<li><strong aria-current="page" aria-label="{{ number }}쪽" class="inline-flex size-10 items-center justify-center rounded-xl text-sm bg-blue-50 font-medium text-blue-900 tabular-nums">{{ number }}</strong></li>
+      {% else %}<li><a aria-label="{{ number }}쪽" class="inline-flex size-10 items-center justify-center rounded-xl text-sm text-gray-900 tabular-nums hover:bg-gray-100" href="{{ url }}" hx-get="{{ url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">{{ number }}</a></li>
+      {% endif %}
+      {% endfor %}
+    </ol>
+    <div class="ml-auto flex items-center gap-4">
+      <form method="get" action="/" hx-get="/" hx-trigger="change" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">
+      {% if link_query %}<input type="hidden" name="q" value="{{ link_query }}"><input type="hidden" name="field" value="{{ field }}">{% endif %}
+      <label for="page-size" class="sr-only">표시 개수</label>
+      <select id="page-size" name="size" class="h-10 rounded-lg border border-gray-200 bg-white px-2.5">
+        {% for option in page_sizes %}<option value="{{ option }}"{% if option == page_size %} selected{% endif %}>{{ option }}개씩</option>{% endfor %}
+      </select>
+      <noscript><button type="submit" class="ml-1 h-10 rounded-lg border border-gray-200 bg-white px-2.5">적용</button></noscript>
+    </form>
+    {% if prev_url %}<a aria-label="이전 쪽" class="inline-flex size-10 items-center justify-center rounded-xl text-sm border border-gray-200 hover:bg-gray-100" href="{{ prev_url }}" hx-get="{{ prev_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true"><svg aria-hidden="true" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></a>
+    {% else %}<span aria-label="이전 쪽" aria-disabled="true" class="inline-flex size-10 items-center justify-center rounded-xl text-sm border border-gray-200 opacity-40"><svg aria-hidden="true" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span>
     {% endif %}
-    {% endfor %}
-    {% if next_block_url %}<a class="border border-gray-300 px-2 py-0.5 text-gray-700 hover:bg-gray-100" href="{{ next_block_url }}" hx-get="{{ next_block_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true">다음 »</a>{% endif %}
+    {% if next_url %}<a aria-label="다음 쪽" class="inline-flex size-10 items-center justify-center rounded-xl text-sm border border-gray-200 hover:bg-gray-100" href="{{ next_url }}" hx-get="{{ next_url }}" hx-target="#post-list" hx-swap="outerHTML" hx-push-url="true"><svg aria-hidden="true" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
+    {% else %}<span aria-label="다음 쪽" aria-disabled="true" class="inline-flex size-10 items-center justify-center rounded-xl text-sm border border-gray-200 opacity-40"><svg aria-hidden="true" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+    {% endif %}
+    </div>
   </nav>
 </section>

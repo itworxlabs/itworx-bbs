@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
-from app.main import KST, app, format_list_date
+from app.main import KST, _page_items, app, format_list_date
 from app.migrate import BASE_DIR
 from app.models import Comment, Post
 from app.passwords import hash_password, verify_password
@@ -73,12 +73,14 @@ def test_list_is_paginated_newest_first() -> None:
     assert page_numbers(first.text) == ["1", "2", "3"]
     assert current_page(first.text) == "1"
     assert 'href="/?page=2"' in first.text
-    assert "이전" not in first.text
+    assert '<span aria-label="이전 쪽" aria-disabled="true"' in first.text
+    assert '<a aria-label="다음 쪽"' in first.text
 
     last = client.get("/?page=3")
     assert row_count(last.text) == 5
     assert 'href="/?page=2"' in last.text
-    assert "다음" not in last.text
+    assert '<a aria-label="이전 쪽"' in last.text
+    assert '<span aria-label="다음 쪽" aria-disabled="true"' in last.text
 
 
 def test_posts_with_same_created_at_are_newest_id_first() -> None:
@@ -208,27 +210,69 @@ def test_new_mark_within_24_hours() -> None:
     assert "지난 글</a>" in older and "new-mark" not in older
 
 
-def test_page_numbers_show_ten_and_block_links() -> None:
+@pytest.mark.parametrize(
+    ("page", "last", "expected"),
+    [
+        (1, 1, [1]),
+        (4, 7, [1, 2, 3, 4, 5, 6, 7]),
+        (1, 12, [1, 2, 3, 4, None, 12]),
+        (3, 12, [1, 2, 3, 4, None, 12]),
+        (4, 12, [1, None, 3, 4, 5, None, 12]),
+        (6, 12, [1, None, 5, 6, 7, None, 12]),
+        (10, 12, [1, None, 9, 10, 11, 12]),
+        (12, 12, [1, None, 9, 10, 11, 12]),
+    ],
+)
+def test_page_items_show_ends_and_neighbours(page: int, last: int, expected: list[int | None]) -> None:
+    assert _page_items(page, last) == expected
+
+
+def test_page_numbers_skip_with_ellipsis() -> None:
     add_posts(115)
 
     first = client.get("/").text
-    assert page_numbers(first) == [str(n) for n in range(1, 11)]
+    assert page_numbers(first) == ["1", "2", "3", "4", "12"]
     assert current_page(first) == "1"
-    assert 'href="/?page=11" hx-get="/?page=11"' in first
-    assert "다음 »" in first
-    assert "« 이전" not in first
+    assert '<li aria-hidden="true" class="px-1 text-gray-500">…</li>' in first
+    assert 'href="/?page=12" hx-get="/?page=12"' in first
+    assert "총 115건" in first
 
-    last = client.get("/?page=12").text
-    assert page_numbers(last) == ["11", "12"]
-    assert current_page(last) == "12"
-    assert 'href="/?page=10" hx-get="/?page=10"' in last
-    assert "« 이전" in last
-    assert "다음 »" not in last
+    middle = client.get("/?page=6").text
+    assert page_numbers(middle) == ["1", "5", "6", "7", "12"]
+    assert 'href="/?page=5" hx-get="/?page=5"' in middle
+    assert 'href="/?page=7" hx-get="/?page=7"' in middle
 
-    partial = client.get("/?page=11", headers={"HX-Request": "true"}).text
-    assert page_numbers(partial) == ["11", "12"]
-    assert 'href="/?page=10" hx-get="/?page=10"' in partial
+    partial = client.get("/?page=12", headers={"HX-Request": "true"}).text
+    assert page_numbers(partial) == ["1", "9", "10", "11", "12"]
+    assert current_page(partial) == "12"
 
+
+def test_total_uses_thousands_separator() -> None:
+    add_posts(1234)
+
+    assert "총 1,234건" in client.get("/").text
+
+
+@pytest.mark.parametrize(("size", "rows", "last"), [("20", 20, "2"), ("50", 25, "1")])
+def test_page_size_changes_rows_and_is_kept_in_links(size: str, rows: int, last: str) -> None:
+    add_posts(25)
+
+    text = client.get(f"/?size={size}").text
+    assert row_count(text) == rows
+    assert page_numbers(text)[-1] == last
+    assert f'<option value="{size}" selected>{size}개씩</option>' in text
+    if last == "2":
+        assert f'href="/?page=2&amp;size={size}" hx-get="/?page=2&amp;size={size}"' in text
+
+
+@pytest.mark.parametrize("size", ["15", "abc", "", "1000"])
+def test_unknown_page_size_falls_back_to_ten(size: str) -> None:
+    add_posts(25)
+
+    text = client.get("/", params={"size": size}).text
+    assert row_count(text) == 10
+    assert '<option value="10" selected>10개씩</option>' in text
+    assert 'href="/?page=2"' in text
 
 @pytest.mark.parametrize(("page", "rows"), [("0", 10), ("-1", 10), ("abc", 10), ("", 10), ("999", 5)])
 def test_invalid_page_is_clamped(page: str, rows: int) -> None:

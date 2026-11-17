@@ -171,20 +171,29 @@ def test_page_links_keep_search_encoded() -> None:
     assert f'href="{prev_link}" hx-get="{prev_link}"' in second
 
 
-def test_block_links_keep_search_encoded() -> None:
+def test_far_page_links_keep_search_encoded() -> None:
     q = "한글 a&b#c"
     add_titled_posts([f"{q} {i}" for i in range(1, 102)])
 
     first = client.get("/", params={"q": q, "field": "title"}).text
-    next_block = link(11, q, "title")
-    assert f'href="{next_block}" hx-get="{next_block}"' in first
-    assert "다음 »" in first
+    last_link = link(11, q, "title")
+    assert f'href="{last_link}" hx-get="{last_link}"' in first
 
     last = client.get("/", params={"q": q, "field": "title", "page": "11"}).text
-    prev_block = link(10, q, "title")
-    assert f'href="{prev_block}" hx-get="{prev_block}"' in last
-    assert "« 이전" in last
+    first_link = link(1, q, "title")
+    assert f'href="{first_link}" hx-get="{first_link}"' in last
 
+
+def test_page_size_form_keeps_search() -> None:
+    q = "한글 a&b#c"
+    add_titled_posts([f"{q} {i}" for i in range(1, 30)])
+
+    text = client.get("/", params={"q": q, "field": "title", "size": "20"}).text
+    assert row_count(text) == 20
+    assert f'<input type="hidden" name="q" value="{html.escape(q)}">' in text
+    assert '<input type="hidden" name="field" value="title">' in text
+    second = html.escape("/?" + urlencode({"page": 2, "q": q, "field": "title", "size": 20}))
+    assert f'href="{second}" hx-get="{second}"' in text
 
 def test_htmx_partial_keeps_search() -> None:
     add_found_and_other_posts()
