@@ -37,7 +37,7 @@ def test_detail_shows_post() -> None:
         assert fragment in response.text
     assert "2026-01-01 00:25" not in response.text
     assert "<title>상세 제목 - itworx-bbs</title>" in response.text
-    assert 'href="/">목록으로</a>' in response.text
+    assert 'href="/">목록</a>' in response.text
     assert 'href="/posts/new">글쓰기</a>' in response.text
     assert f'href="/posts/{post_id}/edit">수정</a>' in response.text
     assert f'href="/posts/{post_id}/delete">삭제</a>' in response.text

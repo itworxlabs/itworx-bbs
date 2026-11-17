@@ -39,7 +39,7 @@ def test_edit_form_is_prefilled() -> None:
     assert response.status_code == 200
     assert 'value="원래 제목"' in response.text
     assert ">원래 내용</textarea>" in response.text
-    assert "작성자: 홍길동" in response.text
+    assert ">홍길동</div>" in response.text
     assert 'name="author"' not in response.text
     assert 'name="password"' in response.text
     assert f'action="/posts/{post_id}/edit"' in response.text

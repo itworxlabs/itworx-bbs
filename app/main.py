@@ -2,7 +2,7 @@ import logging
 import math
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlencode
@@ -21,7 +21,8 @@ from app.models import Comment, Post
 from app.passwords import hash_password, verify_password
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-PAGE_SIZE = 10
+PAGE_SIZES = (10, 20, 50)
+PAGE_SIZE_DEFAULT = PAGE_SIZES[0]
 SEARCH_MAX = 100
 SEARCH_FIELD_DEFAULT = "title_content"
 SEARCH_FIELDS = {
@@ -56,10 +57,17 @@ def format_kst(value: datetime) -> str:
     return value.replace(tzinfo=UTC).astimezone(KST).strftime("%Y-%m-%d %H:%M")
 
 
+def format_list_date(value: datetime, now: datetime) -> str:
+    # value is a stored naive UTC time and now an aware one; "today" is decided in KST.
+    local = value.replace(tzinfo=UTC).astimezone(KST)
+    return local.strftime("%H:%M" if local.date() == now.astimezone(KST).date() else "%y.%m.%d")
+
+
 app = FastAPI(title="itworx-bbs", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["kst"] = format_kst
+templates.env.filters["list_date"] = format_list_date
 
 
 def _parse_page(raw: str | None) -> int:
@@ -75,10 +83,37 @@ def _like_pattern(query: str) -> str:
     return f"%{escaped}%"
 
 
-def _list_url(page: int, query: str, field: str) -> str:
-    if not query:
-        return f"/?page={page}"
-    return "/?" + urlencode({"page": page, "q": query, "field": field})
+def _parse_page_size(raw: str | None) -> int:
+    # Only the offered sizes are accepted, so a hand-edited ?size= cannot ask for huge pages.
+    return next((size for size in PAGE_SIZES if raw == str(size)), PAGE_SIZE_DEFAULT)
+
+
+def _list_url(page: int, query: str, field: str, size: int = PAGE_SIZE_DEFAULT) -> str:
+    params: dict[str, str | int] = {"page": page}
+    if query:
+        params |= {"q": query, "field": field}
+    if size != PAGE_SIZE_DEFAULT:
+        params["size"] = size
+    return "/?" + urlencode(params)
+
+
+def _page_items(page: int, last: int) -> list[int | None]:
+    # Same rule as the Byeori pagination: first and last page, the current page and its neighbours,
+    # and None where pages are skipped (shown as "…"). Up to 7 pages are all shown.
+    if last <= 7:
+        return list(range(1, last + 1))
+    if page <= 3:
+        middle = [2, 3, 4]
+    elif page >= last - 2:
+        middle = [last - 3, last - 2, last - 1]
+    else:
+        middle = [page - 1, page, page + 1]
+    items: list[int | None] = []
+    for number in sorted({1, *middle, last}):
+        if items and items[-1] is not None and number - items[-1] > 1:
+            items.append(None)
+        items.append(number)
+    return items
 
 
 def _parse_id(raw: str) -> int | None:
@@ -189,6 +224,7 @@ def index(
     deleted: str | None = None,
     q: str | None = None,
     field: str | None = None,
+    size: str | None = None,
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     query = (q or "").strip()
@@ -201,7 +237,8 @@ def index(
         conditions.append(or_(*(column.like(pattern, escape="\\") for column in SEARCH_FIELDS[field][1])))
 
     total = db.scalar(select(func.count()).select_from(Post).where(*conditions)) or 0
-    total_pages = max(1, math.ceil(total / PAGE_SIZE))
+    page_size = _parse_page_size(size)
+    total_pages = max(1, math.ceil(total / page_size))
     current = min(max(_parse_page(page), 1), total_pages)
     comment_count = (
         select(func.count(Comment.id)).where(Comment.post_id == Post.id).correlate(Post).scalar_subquery()
@@ -210,10 +247,14 @@ def index(
         select(Post, comment_count)
         .where(*conditions)
         .order_by(Post.created_at.desc(), Post.id.desc())
-        .offset((current - 1) * PAGE_SIZE)
-        .limit(PAGE_SIZE)
+        .offset((current - 1) * page_size)
+        .limit(page_size)
     ).all()
     link_query = query if searching else ""
+    now = datetime.now(UTC)
+
+    def url(number: int) -> str:
+        return _list_url(number, link_query, field, page_size)
 
     # htmx sends HX-Request on history restores too, but expects a full page for them.
     is_partial = (
@@ -226,7 +267,6 @@ def index(
         {
             "posts": posts,
             "page": current,
-            "total_pages": total_pages,
             "total": total,
             "q": query,
             "field": field,
@@ -234,8 +274,14 @@ def index(
             "search_error": search_error,
             "search_fields": [(value, label) for value, (label, _) in SEARCH_FIELDS.items()],
             "search_max": SEARCH_MAX,
-            "prev_url": _list_url(current - 1, link_query, field) if current > 1 else None,
-            "next_url": _list_url(current + 1, link_query, field) if current < total_pages else None,
+            "now": now,
+            "new_since": now.replace(tzinfo=None) - timedelta(hours=24),
+            "page_items": [(n, url(n)) if n is not None else (None, None) for n in _page_items(current, total_pages)],
+            "prev_url": url(current - 1) if current > 1 else None,
+            "next_url": url(current + 1) if current < total_pages else None,
+            "page_size": page_size,
+            "page_sizes": PAGE_SIZES,
+            "link_query": link_query,
             "notice": "글이 삭제되었습니다." if deleted == "1" else None,
         },
         status_code=400 if search_error else 200,

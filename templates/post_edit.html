@@ -3,29 +3,40 @@
 {% block title %}글 수정 - itworx-bbs{% endblock %}
 
 {% block content %}
-  <h1 class="mb-4 text-2xl font-bold">글 수정</h1>
-  {% if errors %}<p role="alert" class="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">글을 수정하지 못했습니다. 아래 항목을 확인해 주세요.</p>{% endif %}
-  <form method="post" action="/posts/{{ post.id }}/edit" class="space-y-4">
-    <div>
-      <label class="mb-1 block font-medium" for="title">제목</label>
-      <input type="text" id="title" name="title" value="{{ form.title }}" class="block w-full rounded border border-gray-300 bg-white px-3 py-2 focus:outline-2 focus:outline-offset-1 focus:outline-blue-600 aria-invalid:border-red-600"{% if errors.title %} aria-invalid="true" aria-describedby="title-error"{% endif %}>
-      {% if errors.title %}<p id="title-error" class="mt-1 text-sm text-red-700">{{ errors.title }}</p>{% endif %}
+  <h1 class="mb-2 text-base font-bold">글 수정</h1>
+  {% if errors %}<p role="alert" class="mb-3 rounded-sm border border-red-300 bg-red-50 px-3 py-2 text-red-700">글을 수정하지 못했습니다. 아래 항목을 확인해 주세요.</p>{% endif %}
+  <form method="post" action="/posts/{{ post.id }}/edit">
+    <div class="border-t-2 border-blue-900">
+      <div class="border-b border-gray-200 sm:flex">
+        <label class="block shrink-0 bg-gray-100 px-3 py-2 font-medium sm:w-28" for="title">제목</label>
+        <div class="min-w-0 flex-1 px-3 py-2">
+          <input type="text" id="title" name="title" value="{{ form.title }}" class="block w-full rounded-sm border border-gray-300 bg-white px-2 py-1 focus:outline-2 focus:outline-offset-1 focus:outline-blue-900 aria-invalid:border-red-600"{% if errors.title %} aria-invalid="true" aria-describedby="title-error"{% endif %}>
+          {% if errors.title %}<p id="title-error" class="mt-1 text-xs text-red-700">{{ errors.title }}</p>{% endif %}
+        </div>
+      </div>
+      <div class="border-b border-gray-200 sm:flex">
+        <span class="block shrink-0 bg-gray-100 px-3 py-2 font-medium sm:w-28">작성자</span>
+        <div class="min-w-0 flex-1 px-3 py-2 break-words">{{ post.author }}</div>
+      </div>
+      <div class="border-b border-gray-200 sm:flex">
+        <label class="block shrink-0 bg-gray-100 px-3 py-2 font-medium sm:w-28" for="content">내용</label>
+        <div class="min-w-0 flex-1 px-3 py-2">
+          <textarea id="content" name="content" rows="10" class="block w-full rounded-sm border border-gray-300 bg-white px-2 py-1 focus:outline-2 focus:outline-offset-1 focus:outline-blue-900 aria-invalid:border-red-600"{% if errors.content %} aria-invalid="true" aria-describedby="content-error"{% endif %}>{{ form.content }}</textarea>
+          {% if errors.content %}<p id="content-error" class="mt-1 text-xs text-red-700">{{ errors.content }}</p>{% endif %}
+        </div>
+      </div>
+      <div class="border-b border-gray-200 sm:flex">
+        <label class="block shrink-0 bg-gray-100 px-3 py-2 font-medium sm:w-28" for="password">비밀번호</label>
+        <div class="min-w-0 flex-1 px-3 py-2">
+          <input type="password" id="password" name="password" class="block w-full rounded-sm border border-gray-300 bg-white px-2 py-1 focus:outline-2 focus:outline-offset-1 focus:outline-blue-900 aria-invalid:border-red-600"{% if errors.password %} aria-invalid="true" aria-describedby="password-error password-help"{% else %} aria-describedby="password-help"{% endif %}>
+          <p id="password-help" class="mt-1 text-xs text-gray-500">글을 쓸 때 정한 비밀번호를 입력해 주세요.</p>
+          {% if errors.password %}<p id="password-error" class="mt-1 text-xs text-red-700">{{ errors.password }}</p>{% endif %}
+        </div>
+      </div>
     </div>
-    <p class="break-words">작성자: {{ post.author }}</p>
-    <div>
-      <label class="mb-1 block font-medium" for="content">내용</label>
-      <textarea id="content" name="content" rows="10" class="block w-full rounded border border-gray-300 bg-white px-3 py-2 focus:outline-2 focus:outline-offset-1 focus:outline-blue-600 aria-invalid:border-red-600"{% if errors.content %} aria-invalid="true" aria-describedby="content-error"{% endif %}>{{ form.content }}</textarea>
-      {% if errors.content %}<p id="content-error" class="mt-1 text-sm text-red-700">{{ errors.content }}</p>{% endif %}
-    </div>
-    <div>
-      <label class="mb-1 block font-medium" for="password">비밀번호</label>
-      <input type="password" id="password" name="password" class="block w-full rounded border border-gray-300 bg-white px-3 py-2 focus:outline-2 focus:outline-offset-1 focus:outline-blue-600 aria-invalid:border-red-600"{% if errors.password %} aria-invalid="true" aria-describedby="password-error password-help"{% else %} aria-describedby="password-help"{% endif %}>
-      <p id="password-help" class="mt-1 text-sm text-gray-600">글을 쓸 때 정한 비밀번호를 입력해 주세요.</p>
-      {% if errors.password %}<p id="password-error" class="mt-1 text-sm text-red-700">{{ errors.password }}</p>{% endif %}
-    </div>
-    <div class="flex items-center gap-4">
-      <button type="submit" class="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:outline-2 focus:outline-offset-2 focus:outline-blue-600">수정</button>
-      <a class="text-blue-700 underline hover:text-blue-900" href="/posts/{{ post.id }}">취소</a>
+    <div class="mt-4 flex items-center justify-center gap-2">
+      <button type="submit" class="rounded-sm bg-blue-900 px-4 py-1.5 font-medium text-white hover:bg-blue-800 focus:outline-2 focus:outline-offset-2 focus:outline-blue-900">수정</button>
+      <a class="rounded-sm border border-gray-300 bg-white px-4 py-1.5 text-gray-700 hover:bg-gray-100" href="/posts/{{ post.id }}">취소</a>
     </div>
   </form>
 {% endblock %}
